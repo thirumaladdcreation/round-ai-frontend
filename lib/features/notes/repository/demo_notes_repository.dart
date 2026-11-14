@@ -36,6 +36,18 @@ class DemoNotesRepository implements NotesRepository {
   }) async => Err<AiEnvelope>(_off);
 
   @override
+  Future<Result<AiEnvelope>> generateFromDictation(
+    String patientId, {
+    required String noteType,
+    String? transcript,
+    List<String>? sourceIds,
+    String? noteDate,
+    List<Map<String, String>>? clarifications,
+    required String idempotencyKey,
+    CancelToken? cancelToken,
+  }) async => Err<AiEnvelope>(_off);
+
+  @override
   Future<Result<AiEnvelope>> saveSection(
     String artifactId, {
     required String sectionKey,

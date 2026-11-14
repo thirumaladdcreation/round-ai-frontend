@@ -24,6 +24,10 @@ class AppEnvironment {
     defaultValue: false,
   );
 
+  /// When true, the sign-in screen shows demo account hints (demo / client
+  /// web builds only — never enable for a real clinical deployment).
+  static const bool demoHints = bool.fromEnvironment('DEMO_HINTS');
+
   static String _resolvedBaseUrl = _compileTimeBaseUrl;
   static bool _initialized = false;
   static EnvironmentType _resolvedType = EnvironmentType.development;

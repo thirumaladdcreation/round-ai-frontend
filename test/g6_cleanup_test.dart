@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -74,12 +75,13 @@ void main() {
       final File file = File('${dir.path}/clip.bin');
       await file.writeAsBytes(const <int>[1, 2, 3]);
       final TempMedia media = TempMedia(
-        file: file,
+        bytes: Uint8List.fromList(const <int>[1, 2, 3]),
         mimeType: 'application/octet-stream',
         kind: MediaKind.audio,
+        path: file.path,
       );
       await withTempMediaCleanup(media, (TempMedia m) async {
-        expect(await m.file.exists(), isTrue);
+        expect(await File(m.path!).exists(), isTrue);
         return 1;
       });
       expect(await file.exists(), isFalse);
@@ -87,9 +89,10 @@ void main() {
       final File file2 = File('${dir.path}/clip2.bin');
       await file2.writeAsBytes(const <int>[4, 5]);
       final TempMedia media2 = TempMedia(
-        file: file2,
+        bytes: Uint8List.fromList(const <int>[4, 5]),
         mimeType: 'application/octet-stream',
         kind: MediaKind.image,
+        path: file2.path,
       );
       await expectLater(
         withTempMediaCleanup(media2, (TempMedia m) async {

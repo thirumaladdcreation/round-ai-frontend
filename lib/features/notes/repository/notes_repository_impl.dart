@@ -99,6 +99,39 @@ class NotesRepositoryImpl implements NotesRepository {
   }
 
   @override
+  Future<Result<AiEnvelope>> generateFromDictation(
+    String patientId, {
+    required String noteType,
+    String? transcript,
+    List<String>? sourceIds,
+    String? noteDate,
+    List<Map<String, String>>? clarifications,
+    required String idempotencyKey,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final Map<String, Object> data = <String, Object>{
+        'note_type': noteType,
+        if (transcript != null && transcript.trim().isNotEmpty)
+          'transcript': transcript.trim(),
+        if (sourceIds != null && sourceIds.isNotEmpty) 'source_ids': sourceIds,
+        if (noteDate != null && noteDate.isNotEmpty) 'note_date': noteDate,
+        if (clarifications != null && clarifications.isNotEmpty)
+          'clarifications': clarifications,
+      };
+      final Response<Object> response = await _client.postAi<Object>(
+        ApiEndpoints.patientNotesFromDictation(patientId),
+        idempotencyKey: idempotencyKey,
+        data: data,
+        cancelToken: cancelToken,
+      );
+      return Ok<AiEnvelope>(AiEnvelope.fromBody(response.data));
+    } on ApiError catch (error) {
+      return Err<AiEnvelope>(ApiFailure(error));
+    }
+  }
+
+  @override
   Future<Result<AiEnvelope>> saveSection(
     String artifactId, {
     required String sectionKey,

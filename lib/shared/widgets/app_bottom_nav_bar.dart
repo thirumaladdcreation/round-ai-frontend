@@ -22,40 +22,42 @@ class AppBottomNavBar extends StatelessWidget {
   List<_NavSpec> get _items => <_NavSpec>[
     for (final ShellTab tab in ShellTabs.visible)
       switch (tab) {
+        // Labels/icons aligned to clinical prototype bottom bar where possible.
+        // Scribe stays in-bar (product); prototype puts Tasks here instead.
         ShellTab.today => const _NavSpec(
           Icons.home_rounded,
           Icons.home_outlined,
-          'Home',
+          'Today',
         ),
         ShellTab.census => const _NavSpec(
-          Icons.people_alt_rounded,
-          Icons.people_alt_outlined,
+          Icons.groups_outlined,
+          Icons.groups_outlined,
           'Census',
         ),
         ShellTab.scribe => const _NavSpec(
-          Icons.mic_none_rounded,
+          Icons.mic_none_outlined,
           Icons.mic_none_outlined,
           'Scribe',
         ),
         ShellTab.rounds => const _NavSpec(
-          Icons.monitor_heart,
-          Icons.monitor_heart_outlined,
+          Icons.medical_services_outlined,
+          Icons.medical_services_outlined,
           'Rounds',
         ),
         ShellTab.learn => const _NavSpec(
-          Icons.school_rounded,
-          Icons.school_outlined,
+          Icons.menu_book_outlined,
+          Icons.menu_book_outlined,
           'Learn',
         ),
         // Kept for exhaustiveness; not shown in [ShellTabs.visible].
         ShellTab.tasks => _NavSpec(
-          Icons.fact_check_rounded,
-          Icons.fact_check_outlined,
+          Icons.checklist_outlined,
+          Icons.checklist_outlined,
           'Tasks',
           badge: tasksBadge,
         ),
         ShellTab.chat => _NavSpec(
-          Icons.forum_rounded,
+          Icons.forum_outlined,
           Icons.forum_outlined,
           'Chat',
           badge: chatBadge,

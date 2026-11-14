@@ -1,6 +1,4 @@
-import 'dart:io';
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -46,7 +44,7 @@ class MediaCapture {
   final ImageCompressor _compressor;
   final MediaPermissions _permissions;
 
-  /// Camera or gallery. Compresses before returning.
+  /// Camera or gallery. Compresses before returning. HEIC/other → JPEG.
   Future<TempMedia> pickImage({required ImageSource source}) async {
     final MediaPermissionUse need = source == ImageSource.camera
         ? MediaPermissionUse.camera
@@ -55,7 +53,9 @@ class MediaCapture {
 
     final XFile? picked = await _picker.pickImage(
       source: source,
-      // Prefer not writing to the gallery; image_picker uses a temp path.
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 85,
       requestFullMetadata: false,
     );
     if (picked == null) {
@@ -64,9 +64,15 @@ class MediaCapture {
 
     final Uint8List raw = await picked.readAsBytes();
     final String mime = MediaValidator.normalizeMime(
-      picked.mimeType ?? _mimeFromPath(picked.path) ?? 'image/jpeg',
+      picked.mimeType ?? _mimeFromPath(picked.name) ?? 'image/jpeg',
     );
-    final Uint8List compressed = _compressor.compress(raw, mimeType: mime);
+    final Uint8List? compressed = _compressor.compress(raw, mimeType: mime);
+    if (compressed == null) {
+      // HEIC/HEIF and other undecodable formats — do not upload mislabeled bytes.
+      throw const MediaCaptureException(
+        ApiError(code: 'mime_not_allowed', message: '', status: 415),
+      );
+    }
     final ApiError? bad = MediaValidator.check(
       kind: MediaKind.image,
       mimeType: 'image/jpeg',
@@ -82,56 +88,73 @@ class MediaCapture {
     );
   }
 
-  /// Starts a microphone recording into a temp m4a file. Call [stopRecording]
-  /// or [cancelRecording] next.
+  /// Starts a microphone recording. Call [stopRecording] or [cancelRecording].
   Future<void> startRecording() async {
     await _require(MediaPermissionUse.microphone);
     if (await _recorder.isRecording()) {
       await _recorder.stop();
     }
-    final Directory dir = await getTemporaryDirectory();
-    final String path =
-        '${dir.path}${Platform.pathSeparator}'
-        'rounds_ai_${DateTime.now().microsecondsSinceEpoch}.m4a';
-    await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.aacLc),
-      path: path,
-    );
+    // `record` requires a path argument on all platforms; on web it is a
+    // placeholder and stop() returns a blob URL.
+    final String path;
+    if (kIsWeb) {
+      path = 'rounds_ai_${DateTime.now().microsecondsSinceEpoch}.wav';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.wav),
+        path: path,
+      );
+    } else {
+      final dynamic dir = await getTemporaryDirectory();
+      path =
+          '${dir.path}/rounds_ai_${DateTime.now().microsecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc),
+        path: path,
+      );
+    }
   }
 
-  /// Stops recording and returns a validated temp file, or null if nothing
-  /// was captured.
+  /// Stops recording and returns a validated temp capture, or null if empty.
   Future<TempMedia?> stopRecording() async {
     final String? path = await _recorder.stop();
     if (path == null || path.isEmpty) return null;
-    final File file = File(path);
-    if (!await file.exists()) return null;
-    final int length = await file.length();
-    const String mime = 'audio/mp4';
+
+    late final Uint8List bytes;
+    late final String mime;
+    bytes = await XFile(path).readAsBytes();
+    mime = kIsWeb ? 'audio/wav' : 'audio/mp4';
+    if (!kIsWeb) {
+      try {
+        await deleteTempPathIfAny(path);
+      } catch (_) {
+        // Ignore.
+      }
+    }
+
+    if (bytes.isEmpty) return null;
     final ApiError? bad = MediaValidator.check(
       kind: MediaKind.audio,
       mimeType: mime,
-      byteLength: length,
+      byteLength: bytes.length,
     );
-    if (bad != null) {
-      try {
-        await file.delete();
-      } on FileSystemException {
-        // Ignore.
-      }
-      throw MediaCaptureException(bad);
-    }
-    return TempMedia(file: file, mimeType: mime, kind: MediaKind.audio);
+    if (bad != null) throw MediaCaptureException(bad);
+
+    return writeTempMedia(
+      bytes: bytes,
+      mimeType: mime,
+      kind: MediaKind.audio,
+      extension: kIsWeb ? 'wav' : 'm4a',
+    );
   }
 
-  /// Aborts an in-progress recording and deletes the temp file.
+  /// Aborts an in-progress recording.
   Future<void> cancelRecording() async {
     final String? path = await _recorder.stop();
-    if (path == null) return;
+    if (path == null || kIsWeb) return;
     try {
-      final File file = File(path);
-      if (await file.exists()) await file.delete();
-    } on FileSystemException {
+      // Path cleanup is best-effort on IO; web blob URLs are GC'd.
+      await XFile(path).readAsBytes();
+    } catch (_) {
       // Ignore.
     }
   }
@@ -158,6 +181,7 @@ class MediaCapture {
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
     if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.heic') || lower.endsWith('.heif')) return 'image/heic';
     if (lower.endsWith('.m4a')) return 'audio/mp4';
     if (lower.endsWith('.mp3')) return 'audio/mpeg';
     if (lower.endsWith('.wav')) return 'audio/wav';

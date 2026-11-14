@@ -32,6 +32,10 @@ class ApiEndpoints {
   /// `POST { note_type, inputs }` makes a note draft.
   static String patientNotes(String id) => '/patients/$id/notes';
 
+  /// Scribe: one dictation → structured note with transcript spans.
+  static String patientNotesFromDictation(String id) =>
+      '/patients/$id/notes/from-dictation';
+
   /// `PATCH` note sections. `POST .../sections/:key/rewrite` proposes new text
   /// without applying it. `GET .../export` is the clean text.
   static String artifactSectionRewrite(String id, String sectionKey) =>

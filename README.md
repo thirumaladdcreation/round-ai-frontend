@@ -80,6 +80,48 @@ flutter run --dart-define-from-file=config/env/production.json
 
 Production requires HTTPS.
 
+## Release gate (before client send)
+
+- Smoke checklist: [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md)
+- Client one-pager: [`docs/CLIENT_TEST_GUIDE.md`](docs/CLIENT_TEST_GUIDE.md)
+- Client release notes: [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
+- Demo seed (backend): `npm run seed-test-data` in `roundsai-backend` (fictional only)
+
+## Android APK (client share)
+
+See [`docs/ANDROID_APK.md`](docs/ANDROID_APK.md).
+
+```bash
+flutter build apk --release \
+  --dart-define=API_BASE_URL=https://round-ai-backend.fly.dev \
+  --dart-define=APP_ENV=production \
+  --dart-define=DEMO_HINTS=true
+# → build/app/outputs/flutter-apk/app-release.apk
+```
+
+Release signing uses `android/key.properties` when present; otherwise the **debug keystore** (demo only).
+
+## iOS (TestFlight)
+
+IPA cannot be shared like an APK. Prefer **TestFlight**; Ad Hoc only as fallback. AltStore is not for clients.
+
+See [`docs/IOS_DISTRIBUTION.md`](docs/IOS_DISTRIBUTION.md) (needs Apple Developer Program + Mac). Until that account exists, ship web + Android only.
+
+## Web demo (Vercel)
+
+Client-friendly browser link (phone or laptop). See [`docs/WEB_DEPLOY.md`](docs/WEB_DEPLOY.md).
+
+```bash
+flutter build web --release --no-wasm-dry-run \
+  --dart-define=API_BASE_URL=https://round-ai-backend.fly.dev \
+  --dart-define=APP_ENV=production \
+  --dart-define=DEMO_HINTS=true
+cp vercel.json build/web/
+npx vercel build/web --prod
+```
+
+On web, `flutter_secure_storage` uses browser storage (weaker than mobile Keychain/Keystore) — acceptable for the fictional demo only. Wide viewports center a ~430px phone column.
+
 ## What talks to the backend
 
 | Area | Status |

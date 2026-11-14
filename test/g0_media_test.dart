@@ -10,6 +10,8 @@ import 'package:round_ai/core/media/temp_media.dart';
 import 'package:round_ai/core/network/api_error.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('MediaValidator', () {
     test('accepts an allowed audio mime under the size cap', () {
       expect(
@@ -39,7 +41,7 @@ void main() {
         byteLength: MediaLimits.maxImageBytes + 1,
       );
       expect(error!.kind, ApiErrorKind.tooLarge);
-      expect(error.userMessage, 'That file is too large to upload.');
+      expect(error.userMessage, 'Photo is too large.');
     });
 
     test('rejects a file over the audio cap', () {
@@ -72,31 +74,32 @@ void main() {
       if (await dir.exists()) await dir.delete(recursive: true);
     });
 
-    test('deletes the file after a successful action', () async {
-      final TempMedia media = await writeTempMedia(
-        bytes: <int>[1, 2, 3],
-        mimeType: 'image/jpeg',
-        kind: MediaKind.image,
-        extension: 'jpg',
-        directory: dir,
+    Future<TempMedia> mediaAt(List<int> bytes, {required MediaKind kind}) async {
+      final File file = File(
+        '${dir.path}${Platform.pathSeparator}cap_${bytes.length}.bin',
       );
-      expect(await media.file.exists(), isTrue);
+      await file.writeAsBytes(bytes, flush: true);
+      return TempMedia(
+        bytes: Uint8List.fromList(bytes),
+        mimeType: kind == MediaKind.image ? 'image/jpeg' : 'audio/mp4',
+        kind: kind,
+        path: file.path,
+      );
+    }
+
+    test('deletes the file after a successful action', () async {
+      final TempMedia media = await mediaAt(<int>[1, 2, 3], kind: MediaKind.image);
+      expect(await File(media.path!).exists(), isTrue);
 
       final int length = await withTempMediaCleanup(media, (TempMedia m) async {
         return m.length();
       });
       expect(length, 3);
-      expect(await media.file.exists(), isFalse);
+      expect(await File(media.path!).exists(), isFalse);
     });
 
     test('deletes the file when the action throws', () async {
-      final TempMedia media = await writeTempMedia(
-        bytes: <int>[9, 9],
-        mimeType: 'audio/mp4',
-        kind: MediaKind.audio,
-        extension: 'm4a',
-        directory: dir,
-      );
+      final TempMedia media = await mediaAt(<int>[9, 9], kind: MediaKind.audio);
 
       await expectLater(
         withTempMediaCleanup(media, (TempMedia m) async {
@@ -104,17 +107,11 @@ void main() {
         }),
         throwsA(isA<StateError>()),
       );
-      expect(await media.file.exists(), isFalse);
+      expect(await File(media.path!).exists(), isFalse);
     });
 
     test('deletes the file when the action is cancelled', () async {
-      final TempMedia media = await writeTempMedia(
-        bytes: <int>[4],
-        mimeType: 'image/png',
-        kind: MediaKind.image,
-        extension: 'png',
-        directory: dir,
-      );
+      final TempMedia media = await mediaAt(<int>[4], kind: MediaKind.image);
 
       await expectLater(
         withTempMediaCleanup(media, (TempMedia m) async {
@@ -128,19 +125,14 @@ void main() {
           ),
         ),
       );
-      expect(await media.file.exists(), isFalse);
+      expect(await File(media.path!).exists(), isFalse);
     });
 
     test('delete is safe to call twice', () async {
-      final TempMedia media = await writeTempMedia(
-        bytes: <int>[1],
-        mimeType: 'image/jpeg',
-        kind: MediaKind.image,
-        directory: dir,
-      );
+      final TempMedia media = await mediaAt(<int>[1], kind: MediaKind.image);
       await media.delete();
       await media.delete();
-      expect(await media.file.exists(), isFalse);
+      expect(await File(media.path!).exists(), isFalse);
     });
   });
 
@@ -152,12 +144,13 @@ void main() {
     }
 
     test('downscales a large image and returns JPEG', () {
-      final Uint8List out = const ImageCompressor().compress(
+      final Uint8List? out = const ImageCompressor().compress(
         pngOf(3000, 1500),
         mimeType: 'image/png',
         maxSide: 1000,
       );
-      final img.Image? decoded = img.decodeImage(out);
+      expect(out, isNotNull);
+      final img.Image? decoded = img.decodeImage(out!);
       expect(decoded, isNotNull);
       expect(decoded!.width, 1000);
       expect(decoded.height, 500);
@@ -171,12 +164,20 @@ void main() {
       final Uint8List jpeg = Uint8List.fromList(
         img.encodeJpg(image, quality: 90),
       );
-      final Uint8List out = const ImageCompressor().compress(
+      final Uint8List? out = const ImageCompressor().compress(
         jpeg,
         mimeType: 'image/jpeg',
         maxSide: 2000,
       );
       expect(out, same(jpeg));
+    });
+
+    test('returns null for undecodable bytes (e.g. fake HEIC)', () {
+      final Uint8List? out = const ImageCompressor().compress(
+        Uint8List.fromList(<int>[0, 1, 2, 3, 4, 5]),
+        mimeType: 'image/heic',
+      );
+      expect(out, isNull);
     });
   });
 
@@ -185,6 +186,34 @@ void main() {
       expect(
         const ApiError(code: 'too_large', message: 'x', status: 413).kind,
         ApiErrorKind.tooLarge,
+      );
+      expect(
+        const ApiError(code: 'too_large', message: 'x', status: 413).userMessage,
+        'Photo is too large.',
+      );
+      expect(
+        const ApiError(
+          code: 'image_unreadable',
+          message: 'x',
+          status: 502,
+        ).userMessage,
+        'Could not read the photo, try better lighting.',
+      );
+      expect(
+        const ApiError(
+          code: 'ai_unavailable',
+          message: 'x',
+          status: 502,
+        ).userMessage,
+        'AI service busy, try again.',
+      );
+      expect(
+        const ApiError(
+          code: 'mime_not_allowed',
+          message: 'x',
+          status: 415,
+        ).userMessage,
+        contains('JPEG or PNG'),
       );
       expect(
         const ApiError(

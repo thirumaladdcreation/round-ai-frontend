@@ -36,29 +36,24 @@ class HomeHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                '${snapshot.greeting},',
-                style: AppTypography.bodyMedium(color: colors.textSecondary),
+                snapshot.dateLabel,
+                style: AppTypography.caption(color: colors.textMuted),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
-                '${snapshot.clinicianName} 👋',
+                '${snapshot.greeting}, ${snapshot.clinicianName}.',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.bold(
-                  fontSize: 22,
+                  fontSize: 24,
                   height: 1.2,
                   color: colors.navy,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                snapshot.dateLabel,
-                style: AppTypography.caption(color: colors.textMuted),
-              ),
             ],
           ),
         ),
-        if (AppFeatures.chat) ...<Widget>[
+        if (_chatAvailable) ...<Widget>[
           _ChatHeaderIcon(
             onPressed: () => context.go(AppRoutes.chat),
           ),
@@ -77,6 +72,17 @@ class HomeHeader extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// Chat icon needs DI; widget tests may not register the container.
+  bool get _chatAvailable {
+    if (!AppFeatures.chat) return false;
+    try {
+      InjectionContainer.instance.chatUnreadBadge;
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   String _initials(String value) {
@@ -138,12 +144,18 @@ class _HeaderIcon extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
-          IconButton(
-            tooltip: tooltip,
-            onPressed: onPressed,
-            icon: Icon(icon, color: colors.textPrimary),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          Material(
+            color: colors.surface,
+            shape: const CircleBorder(),
+            elevation: 1.5,
+            shadowColor: colors.navy.withValues(alpha: 0.12),
+            child: IconButton(
+              tooltip: tooltip,
+              onPressed: onPressed,
+              icon: Icon(icon, color: colors.textPrimary, size: 20),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+            ),
           ),
           if (badge != null)
             Positioned(
@@ -154,7 +166,7 @@ class _HeaderIcon extends StatelessWidget {
                 height: 16,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: colors.primary,
+                  color: colors.error,
                   shape: BoxShape.circle,
                 ),
                 child: Text(

@@ -7,6 +7,7 @@ import 'package:round_ai/app/theme_cubit.dart';
 import 'package:round_ai/core/utils/screen_utils.dart';
 import 'package:round_ai/shared/widgets/environment_banner.dart';
 import 'package:round_ai/shared/widgets/privacy_shield.dart';
+import 'package:round_ai/shared/widgets/web_phone_shell.dart';
 
 class RoundsApp extends StatelessWidget {
   const RoundsApp({super.key});
@@ -24,12 +25,14 @@ class RoundsApp extends StatelessWidget {
           routerConfig: AppRouter.router,
           builder: (BuildContext context, Widget? child) {
             ScreenUtils.init(context);
-            return GestureDetector(
-              onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-              behavior: HitTestBehavior.translucent,
-              child: PrivacyShield(
-                child: EnvironmentBanner(
-                  child: child ?? const SizedBox.shrink(),
+            return WebPhoneShell(
+              child: GestureDetector(
+                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                behavior: HitTestBehavior.translucent,
+                child: PrivacyShield(
+                  child: EnvironmentBanner(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               ),
             );

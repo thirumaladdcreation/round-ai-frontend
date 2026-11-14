@@ -11,14 +11,17 @@ import 'package:round_ai/core/media/media_limits.dart';
 class ImageCompressor {
   const ImageCompressor();
 
-  Uint8List compress(
+  /// Returns JPEG bytes, or null when the image cannot be decoded (e.g. HEIC
+  /// on platforms without a decoder). Callers must not upload raw undecoded
+  /// bytes labeled as JPEG.
+  Uint8List? compress(
     Uint8List bytes, {
     String? mimeType,
     int maxSide = MediaLimits.imageMaxSide,
     int quality = MediaLimits.imageJpegQuality,
   }) {
     final img.Image? decoded = img.decodeImage(bytes);
-    if (decoded == null) return bytes;
+    if (decoded == null) return null;
 
     img.Image frame = decoded;
     final int longest = frame.width > frame.height ? frame.width : frame.height;

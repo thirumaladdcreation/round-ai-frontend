@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// When a permission is needed. Reasons match the platform strings in
@@ -8,10 +9,14 @@ enum MediaPermissionUse { camera, microphone, photos }
 enum MediaPermissionResult { granted, denied, permanentlyDenied }
 
 /// Asks for camera, microphone or photos only when the user taps capture.
+/// On web, browser permission prompts happen inside the picker/recorder —
+/// this layer is a no-op grant so those APIs can run.
 class MediaPermissions {
   const MediaPermissions();
 
   Future<MediaPermissionResult> ensure(MediaPermissionUse use) async {
+    if (kIsWeb) return MediaPermissionResult.granted;
+
     final Permission permission = switch (use) {
       MediaPermissionUse.camera => Permission.camera,
       MediaPermissionUse.microphone => Permission.microphone,
@@ -32,5 +37,8 @@ class MediaPermissions {
   }
 
   /// Opens the OS settings page so the user can turn a denied permission on.
-  Future<bool> openSettings() => openAppSettings();
+  Future<bool> openSettings() {
+    if (kIsWeb) return Future<bool>.value(false);
+    return openAppSettings();
+  }
 }

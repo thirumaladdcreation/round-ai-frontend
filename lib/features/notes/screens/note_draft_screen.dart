@@ -97,6 +97,14 @@ class _NoteViewState extends State<_NoteView> {
   /// Saved chart plan (Today's plan editor). Prefills empty note plan fields.
   String _savedPlan = '';
 
+  /// Scribe mode: one transcript → structured note (keeps per-field as advanced).
+  bool _scribeMode = true;
+  final TextEditingController _transcript = TextEditingController();
+  final Map<String, TextEditingController> _clarifyAnswers =
+      <String, TextEditingController>{};
+  int? _highlightStart;
+  int? _highlightEnd;
+
   TextEditingController _field(String id) =>
       _fields.putIfAbsent(id, TextEditingController.new);
 
@@ -164,6 +172,10 @@ class _NoteViewState extends State<_NoteView> {
     for (final TextEditingController c in _fields.values) {
       c.dispose();
     }
+    for (final TextEditingController c in _clarifyAnswers.values) {
+      c.dispose();
+    }
+    _transcript.dispose();
     super.dispose();
   }
 
@@ -194,6 +206,19 @@ class _NoteViewState extends State<_NoteView> {
   }
 
   void _generate(NoteCubit cubit, NoteTemplate template) {
+    if (_scribeMode) {
+      final List<Map<String, String>> clarifications = <Map<String, String>>[
+        for (final MapEntry<String, TextEditingController> e
+            in _clarifyAnswers.entries)
+          if (e.value.text.trim().isNotEmpty)
+            <String, String>{'phrase': e.key, 'answer': e.value.text.trim()},
+      ];
+      cubit.generateFromDictation(
+        transcript: _transcript.text,
+        clarifications: clarifications.isEmpty ? null : clarifications,
+      );
+      return;
+    }
     final List<String> ids = _sourceIds.toList();
     cubit.generate(
       _inputs(template),
@@ -319,6 +344,7 @@ class _NoteViewState extends State<_NoteView> {
               : _GenerateBar(
                   state: state,
                   aiOff: widget.aiOff,
+                  scribeMode: _scribeMode,
                   onGenerate: () => _generate(cubit, template),
                   onCancel: cubit.cancel,
                 ),
@@ -381,9 +407,14 @@ class _NoteViewState extends State<_NoteView> {
               ] else ...<Widget>[
                 const SizedBox(height: 10),
                 Text(
-                  'The draft uses only what you type below and the chart facts '
-                  'you have confirmed. A part you leave empty stays "not '
-                  'entered". It is never filled in for you.',
+                  _scribeMode
+                      ? 'Write note from dictation: speak or paste the whole '
+                            'update. The scribe cleans it, splits it into '
+                            'sections, and cites the transcript. It will not '
+                            'invent findings or a plan you did not say.'
+                      : 'Advanced: type each section. Empty parts stay '
+                            '"not entered". Chart-fact sections still use '
+                            'confirmed facts only.',
                   style: AppTypography.regular(
                     fontSize: 13,
                     height: 1.4,
@@ -420,6 +451,52 @@ class _NoteViewState extends State<_NoteView> {
               ],
               if (state.hasDraft) ...<Widget>[
                 const SizedBox(height: 20),
+                if (state.content?.scribeMode == true &&
+                    (state.content?.sections.any(
+                          (NoteSection s) => s.sentences.isNotEmpty,
+                        ) ??
+                        false)) ...<Widget>[
+                  Text(
+                    'Tap a sentence to see its transcript span.',
+                    style: AppTypography.regular(
+                      fontSize: 12,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final NoteSection section in state.sections)
+                    if (section.sentences.isNotEmpty) ...<Widget>[
+                      Text(
+                        section.title,
+                        style: AppTypography.semiBold(
+                          fontSize: 13,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      for (final NoteSentence sent in section.sentences)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: InkWell(
+                            onTap: sent.spans.isEmpty
+                                ? null
+                                : () => setState(() {
+                                    _highlightStart = sent.spans.first.start;
+                                    _highlightEnd = sent.spans.first.end;
+                                  }),
+                            child: Text(
+                              sent.text,
+                              style: AppTypography.regular(
+                                fontSize: 14,
+                                height: 1.4,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 10),
+                    ],
+                ],
                 _Draft(
                   state: state,
                   aiOff: widget.aiOff,
@@ -489,10 +566,139 @@ class _NoteViewState extends State<_NoteView> {
                 ),
             ],
           ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            children: <Widget>[
+              ChoiceChip(
+                label: const Text('Write note from dictation'),
+                selected: _scribeMode,
+                onSelected: state.generating
+                    ? null
+                    : (_) => setState(() => _scribeMode = true),
+              ),
+              ChoiceChip(
+                label: const Text('Per-field (advanced)'),
+                selected: !_scribeMode,
+                onSelected: state.generating
+                    ? null
+                    : (_) => setState(() => _scribeMode = false),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
-          ..._form(context, template, enabled: !state.generating),
+          if (_scribeMode)
+            ..._scribeForm(context, state, enabled: !state.generating)
+          else
+            ..._form(context, template, enabled: !state.generating),
         ];
     }
+  }
+
+  List<Widget> _scribeForm(
+    BuildContext context,
+    NoteDraftState state, {
+    required bool enabled,
+  }) {
+    final AppColors colors = AppColors.of(context);
+    final NoteContent? content = state.content;
+    final List<Widget> out = <Widget>[
+      TextField(
+        controller: _transcript,
+        enabled: enabled,
+        minLines: 6,
+        maxLines: 12,
+        keyboardType: TextInputType.multiline,
+        decoration: appInputDecoration(
+          context,
+          label: 'Dictation',
+          hint: 'Dictate or paste the full update…',
+        ).copyWith(
+          suffixIcon: AppEnvironment.useDemo
+              ? null
+              : FieldMicButton(controller: _transcript, enabled: enabled),
+        ),
+      ),
+      const FreeTextHint(),
+    ];
+    if (_highlightStart != null &&
+        _highlightEnd != null &&
+        content != null &&
+        content.transcript.isNotEmpty) {
+      final String t = content.transcript;
+      final int a = _highlightStart!.clamp(0, t.length);
+      final int b = _highlightEnd!.clamp(0, t.length);
+      out.addAll(<Widget>[
+        const SizedBox(height: 12),
+        Text(
+          'Transcript source',
+          style: AppTypography.medium(fontSize: 12, color: colors.textMuted),
+        ),
+        const SizedBox(height: 4),
+        Text.rich(
+          TextSpan(
+            style: AppTypography.regular(
+              fontSize: 13,
+              height: 1.4,
+              color: colors.textSecondary,
+            ),
+            children: <InlineSpan>[
+              TextSpan(text: t.substring(0, a)),
+              TextSpan(
+                text: t.substring(a, b),
+                style: TextStyle(
+                  backgroundColor: colors.aiAccent.withValues(alpha: 0.25),
+                  color: colors.textPrimary,
+                ),
+              ),
+              TextSpan(text: t.substring(b)),
+            ],
+          ),
+        ),
+      ]);
+    }
+    final List<NeedsClarification> needs =
+        content?.needsClarification ?? const <NeedsClarification>[];
+    if (needs.isNotEmpty) {
+      out.addAll(<Widget>[
+        const SizedBox(height: 16),
+        Text(
+          'Needs your clarification',
+          style: AppTypography.semiBold(
+            fontSize: 14,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        for (final NeedsClarification n in needs) ...<Widget>[
+          Text(
+            '"${n.phrase}" — ${n.question}',
+            style: AppTypography.regular(
+              fontSize: 13,
+              height: 1.35,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _clarifyAnswers.putIfAbsent(
+              n.phrase,
+              TextEditingController.new,
+            ),
+            enabled: enabled,
+            minLines: 1,
+            maxLines: 3,
+            decoration: appInputDecoration(context, label: 'Your answer'),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Text(
+          'Answer above, then regenerate to update those sentences.',
+          style: AppTypography.regular(fontSize: 12, color: colors.textMuted),
+        ),
+      ]);
+    }
+    return out;
   }
 
   List<Widget> _form(
@@ -653,10 +859,12 @@ class _GenerateBar extends StatelessWidget {
     required this.aiOff,
     required this.onGenerate,
     required this.onCancel,
+    this.scribeMode = true,
   });
 
   final NoteDraftState state;
   final bool aiOff;
+  final bool scribeMode;
   final VoidCallback onGenerate;
   final VoidCallback onCancel;
 
@@ -690,7 +898,11 @@ class _GenerateBar extends StatelessWidget {
       child: FilledButton.icon(
         onPressed: aiOff || state.busy ? null : onGenerate,
         icon: const Icon(Icons.auto_awesome, size: 18),
-        label: Text(state.hasDraft ? 'Regenerate draft' : 'Generate draft'),
+        label: Text(
+          state.hasDraft
+              ? 'Regenerate draft'
+              : (scribeMode ? 'Write note from dictation' : 'Generate draft'),
+        ),
       ),
     );
   }

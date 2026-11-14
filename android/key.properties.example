@@ -1,0 +1,7 @@
+# Copy to android/key.properties (gitignored) and fill in.
+# Never commit key.properties or the .jks / .keystore file.
+
+storePassword=REPLACE_ME
+keyPassword=REPLACE_ME
+keyAlias=roundsai
+storeFile=../keystore/roundsai-upload.jks

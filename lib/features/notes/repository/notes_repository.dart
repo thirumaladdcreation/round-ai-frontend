@@ -29,6 +29,18 @@ abstract class NotesRepository {
     CancelToken? cancelToken,
   });
 
+  /// Scribe mode: one transcript (or saved source ids) → structured note.
+  Future<Result<AiEnvelope>> generateFromDictation(
+    String patientId, {
+    required String noteType,
+    String? transcript,
+    List<String>? sourceIds,
+    String? noteDate,
+    List<Map<String, String>>? clarifications,
+    required String idempotencyKey,
+    CancelToken? cancelToken,
+  });
+
   /// Saves the clinician's own text for one section.
   Future<Result<AiEnvelope>> saveSection(
     String artifactId, {

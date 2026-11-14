@@ -175,6 +175,29 @@ class FakeNotesRepository implements NotesRepository {
     );
   }
 
+  String? lastTranscript;
+
+  @override
+  Future<Result<AiEnvelope>> generateFromDictation(
+    String patientId, {
+    required String noteType,
+    String? transcript,
+    List<String>? sourceIds,
+    String? noteDate,
+    List<Map<String, String>>? clarifications,
+    required String idempotencyKey,
+    CancelToken? cancelToken,
+  }) {
+    generateKeys.add(idempotencyKey);
+    generateTypes.add(noteType);
+    lastTranscript = transcript;
+    lastSourceIds = sourceIds;
+    lastToken = cancelToken;
+    return Future<Result<AiEnvelope>>.value(
+      generated ?? Ok<AiEnvelope>(noteEnvelope()),
+    );
+  }
+
   @override
   Future<Result<AiEnvelope>> saveSection(
     String artifactId, {

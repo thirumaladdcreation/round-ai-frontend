@@ -64,39 +64,41 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color successSoft;
   final Color warningSoft;
 
-  static const Color lightNavy = Color(0xFF102A43);
-  static const Color lightText = Color(0xFF172B3A);
-  static const Color lightMuted = Color(0xFF718096);
+  // Prototype tokens (rounds-ai-clinical-prototype): --ink/--bg/--blue/--muted/--line.
+  static const Color lightNavy = Color(0xFF10232E);
+  static const Color lightText = Color(0xFF10232E);
+  static const Color lightMuted = Color(0xFF768690);
   static const Color lightWhite = Color(0xFFFFFFFF);
 
   static const AppColors light = AppColors(
-    background: Color(0xFFF4F8FC),
+    background: Color(0xFFF3F6F8),
     surface: lightWhite,
     navy: lightNavy,
-    primary: Color(0xFF2677D9),
-    secondary: Color(0xFF2677D9),
-    accent: Color(0xFF39B8AD),
+    primary: Color(0xFF087CFF),
+    secondary: Color(0xFF087CFF),
+    accent: Color(0xFF2BA577),
     textPrimary: lightText,
     textSecondary: lightMuted,
     textMuted: lightMuted,
-    border: Color(0xFFDFE7EF),
+    border: Color(0xFFE4EAEE),
     inputFill: Color(0xFFFFFFFF),
-    success: Color(0xFF1F9D6A),
-    warning: Color(0xFFD97706),
-    error: Color(0xFFE11D48),
+    success: Color(0xFF2BA577),
+    warning: Color(0xFFE59B38),
+    error: Color(0xFFE95B63),
     white: lightWhite,
     button: lightNavy,
-    critical: Color(0xFFE11D48),
+    critical: Color(0xFFE95B63),
     criticalBg: Color(0xFFFFF1F2),
-    stable: Color(0xFF2677D9),
+    stable: Color(0xFF087CFF),
     stableBg: Color(0xFFEFF6FF),
-    pending: Color(0xFFD97706),
+    pending: Color(0xFFE59B38),
     pendingBg: Color(0xFFFFF7ED),
-    aiCard: Color(0xFFF5F3FF),
-    aiBorder: Color(0xFFDDD6FE),
-    aiAccent: Color(0xFF6D28D9),
+    // Clinical teal tint for AI surfaces (avoid purple-on-white prototype mismatch).
+    aiCard: Color(0xFFF0F7F8),
+    aiBorder: Color(0xFFC9E4E8),
+    aiAccent: Color(0xFF1C6B74),
     chipIdle: Color(0xFFF1F5F9),
-    primarySoft: Color(0xFFE8F2FC),
+    primarySoft: Color(0xFFE8F3FF),
     successSoft: Color(0xFFE7F6EE),
     warningSoft: Color(0xFFFFF4E8),
   );

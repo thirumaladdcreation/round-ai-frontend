@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:round_ai/app/app_colors.dart';
 import 'package:round_ai/app/app_typography.dart';
+import 'package:round_ai/core/theme/app_radii.dart';
 
 /// One light theme and one dark theme. Screens pick colors from [AppPalette].
 class AppTheme {
@@ -62,9 +63,45 @@ class AppTheme {
         color: palette.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadii.xl),
           side: BorderSide(color: palette.border),
         ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: palette.chipIdle,
+        selectedColor: palette.navy,
+        disabledColor: palette.chipIdle,
+        labelStyle: AppTypography.medium(fontSize: 12, color: palette.textPrimary),
+        secondaryLabelStyle: AppTypography.medium(
+          fontSize: 12,
+          color: palette.white,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          side: BorderSide(color: palette.border),
+        ),
+        side: BorderSide(color: palette.border),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: palette.surface,
+        indicatorColor: palette.primarySoft,
+        labelTextStyle: WidgetStateProperty.resolveWith((
+          Set<WidgetState> states,
+        ) {
+          final bool selected = states.contains(WidgetState.selected);
+          return AppTypography.medium(
+            fontSize: 11,
+            color: selected ? palette.primary : palette.textMuted,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
+          final bool selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            size: 22,
+            color: selected ? palette.primary : palette.textMuted,
+          );
+        }),
       ),
       dividerColor: palette.border,
       inputDecorationTheme: InputDecorationTheme(
@@ -73,15 +110,15 @@ class AppTheme {
         hintStyle: AppTypography.bodyMedium(color: palette.textSecondary),
         labelStyle: AppTypography.label(color: palette.textPrimary),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadii.lg),
           borderSide: BorderSide(color: palette.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadii.lg),
           borderSide: BorderSide(color: palette.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadii.lg),
           borderSide: BorderSide(color: palette.primary, width: 1.4),
         ),
       ),

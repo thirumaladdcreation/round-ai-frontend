@@ -16,6 +16,7 @@ enum ApiErrorKind {
   tooLarge,
   mimeNotAllowed,
   emptyFile,
+  imageUnreadable,
   notApproved,
   notConfirmable,
   teamRequired,
@@ -121,6 +122,8 @@ class ApiError implements Exception {
         return ApiErrorKind.mimeNotAllowed;
       case 'empty_file':
         return ApiErrorKind.emptyFile;
+      case 'image_unreadable':
+        return ApiErrorKind.imageUnreadable;
       case 'not_approved':
         return ApiErrorKind.notApproved;
       case 'not_confirmable':
@@ -207,6 +210,7 @@ class ApiError implements Exception {
       case ApiErrorKind.dailyLimit:
         return 'Daily AI limit reached.';
       case ApiErrorKind.aiUnavailable:
+        return 'AI service busy, try again.';
       case ApiErrorKind.aiInvalidOutput:
         return 'Generation failed. Your data is unchanged.';
       case ApiErrorKind.evidenceRetrievalFailed:
@@ -215,11 +219,13 @@ class ApiError implements Exception {
         return 'Topic looks like it contains patient identifiers. '
             'Use a generic clinical topic.';
       case ApiErrorKind.tooLarge:
-        return 'That file is too large to upload.';
+        return 'Photo is too large.';
       case ApiErrorKind.mimeNotAllowed:
-        return 'That file type is not supported.';
+        return 'That photo format is not supported. Try JPEG or PNG.';
       case ApiErrorKind.emptyFile:
         return 'That file is empty.';
+      case ApiErrorKind.imageUnreadable:
+        return 'Could not read the photo, try better lighting.';
       case ApiErrorKind.notApproved:
         return 'This question was reported and is under review.';
       case ApiErrorKind.notConfirmable:

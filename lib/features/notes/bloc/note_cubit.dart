@@ -332,6 +332,54 @@ class NoteCubit extends Cubit<NoteDraftState> {
     }
   }
 
+  /// Scribe: one messy dictation → structured note with span citations.
+  Future<void> generateFromDictation({
+    required String transcript,
+    List<String>? sourceIds,
+    List<Map<String, String>>? clarifications,
+  }) async {
+    final String? type = state.selectedType;
+    if (type == null || state.generating) return;
+    final String signature =
+        'dictation|$type|${transcript.trim()}|${jsonEncode(sourceIds ?? const <String>[])}|${jsonEncode(clarifications ?? const <Map<String, String>>[])}';
+    if (signature != _lastSignature) _generateKey = null;
+    _lastSignature = signature;
+    _generateKey ??= IdempotencyKey.create();
+    final CancelToken token = _cancel = CancelToken();
+    emit(
+      state.copyWith(
+        generating: true,
+        clearError: true,
+        clearReviewError: true,
+        flaggedSections: const <String>[],
+      ),
+    );
+    final Result<AiEnvelope> result = await _notes.generateFromDictation(
+      patientId,
+      noteType: type,
+      transcript: transcript,
+      sourceIds: sourceIds,
+      clarifications: clarifications,
+      idempotencyKey: _generateKey!,
+      cancelToken: token,
+    );
+    if (isClosed) return;
+    switch (result) {
+      case Err<AiEnvelope>(:final failure):
+        final ApiError error = failure.apiError;
+        if (error.kind == ApiErrorKind.cancelled) {
+          _generateKey = null;
+          emit(state.copyWith(generating: false));
+          return;
+        }
+        if (!error.isRetryable) _generateKey = null;
+        emit(state.copyWith(generating: false, error: error));
+      case Ok<AiEnvelope>(:final value):
+        _generateKey = null;
+        emit(_withDraft(value, generating: false));
+    }
+  }
+
   void cancel() => _cancel?.cancel();
 
   NoteDraftState _withDraft(AiEnvelope envelope, {bool generating = false}) {

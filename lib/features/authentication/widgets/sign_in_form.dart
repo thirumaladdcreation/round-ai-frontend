@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:round_ai/app/app_colors.dart';
 import 'package:round_ai/app/app_typography.dart';
+import 'package:round_ai/core/config/app_environment.dart';
 import 'package:round_ai/core/router/app_routes.dart';
 import 'package:round_ai/features/authentication/bloc/auth_bloc.dart';
 import 'package:round_ai/features/authentication/bloc/auth_event.dart';
@@ -77,6 +78,18 @@ class SignInFormState extends State<SignInForm> {
               ),
             ),
             const SizedBox(height: 18),
+            if (AppEnvironment.demoHints) ...<Widget>[
+              Text(
+                'Demo: resident@rounds.test / ChangeMe-12345\n'
+                'Admin: admin@rounds.test / ChangeMe-12345\n'
+                'Fictional data only — not for real patients.',
+                textAlign: TextAlign.center,
+                style: AppTypography.inter(
+                  AppTypography.regular(color: subtitle, fontSize: 12, height: 1.35),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
             SignInFields(
               emailController: _emailController,
               passwordController: _passwordController,

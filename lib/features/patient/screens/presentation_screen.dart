@@ -304,6 +304,19 @@ class _PresentationScreenState extends State<PresentationScreen> {
               ),
             ),
           ),
+          if (draft.spokenText.trim().isEmpty ||
+              draft.sentences.isEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              "Confirm facts and save Today's plan, then regenerate. "
+              'A short or empty presentation usually means the chart is incomplete.',
+              style: AppTypography.regular(
+                fontSize: 13,
+                height: 1.4,
+                color: colors.warning,
+              ),
+            ),
+          ],
           if (draft.missingInformation.isNotEmpty) ...<Widget>[
             const SizedBox(height: 8),
             Text(
