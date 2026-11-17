@@ -7,6 +7,7 @@ import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/router/app_routes.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
+import 'package:round_ai/core/utils/clinical_format.dart';
 import 'package:round_ai/features/patient/data/patient_workspace.dart';
 import 'package:round_ai/features/rounds/models/round_brief.dart';
 import 'package:round_ai/features/rounds/repository/demo_round_repository.dart';
@@ -275,7 +276,9 @@ class _RoundsScreenState extends State<RoundsScreen> {
               if (card.missingInformation.isNotEmpty)
                 _BulletSection(
                   title: 'Missing information',
-                  lines: card.missingInformation,
+                  lines: card.missingInformation
+                      .map(humanizeMissingToken)
+                      .toList(),
                 ),
               if (card.planToday != null && card.planToday!.isNotEmpty)
                 _Section(title: 'Plan', body: card.planToday!),
@@ -332,11 +335,7 @@ class _RoundsScreenState extends State<RoundsScreen> {
   }
 
   static String _mapLine(Map<String, dynamic> map) {
-    final String label = '${map['label'] ?? map['name'] ?? ''}'.trim();
-    final String value = '${map['value'] ?? map['message'] ?? ''}'.trim();
-    if (label.isEmpty) return value.isEmpty ? map.toString() : value;
-    if (value.isEmpty) return label;
-    return '$label · $value';
+    return formatInsightMap(map);
   }
 
   static String _taskLine(RoundTaskItem t) {

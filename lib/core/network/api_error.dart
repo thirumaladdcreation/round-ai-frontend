@@ -174,11 +174,16 @@ class ApiError implements Exception {
 
   /// Generation failures where Retry makes sense.
   bool get isRetryable {
-    return kind == ApiErrorKind.aiUnavailable ||
+    if (kind == ApiErrorKind.aiUnavailable ||
         kind == ApiErrorKind.aiInvalidOutput ||
         kind == ApiErrorKind.evidenceRetrievalFailed ||
         kind == ApiErrorKind.network ||
-        kind == ApiErrorKind.timeout;
+        kind == ApiErrorKind.timeout) {
+      return true;
+    }
+    // Transient server failures during note/summary generation.
+    if (status != null && status! >= 500) return true;
+    return code == 'internal' || code == 'unknown_error';
   }
 
   /// Section keys named by `unresolved_flags` / `placeholders_remaining`.
@@ -263,10 +268,22 @@ class ApiError implements Exception {
         if (code == 'text_required') {
           return 'Enter the plan text first, then save.';
         }
+        if (code == 'transcript_required') {
+          return 'Enter or dictate an update before writing the note.';
+        }
         if (code == 'no_plan') {
           return 'Save today\'s plan before proposing tasks.';
         }
-        return 'Something went wrong. Try again.';
+        if (code == 'internal' || code == 'unknown_error') {
+          return 'Note generation failed. Your dictation and edits were kept — tap Retry.';
+        }
+        if (code == 'ai_invalid_output') {
+          return 'The draft could not be validated from that update. Your text was kept — edit and Retry.';
+        }
+        if (status != null && status! >= 500) {
+          return 'Note generation failed. Your dictation and edits were kept — tap Retry.';
+        }
+        return 'Note generation failed. Your entered text was kept — tap Retry.';
     }
   }
 

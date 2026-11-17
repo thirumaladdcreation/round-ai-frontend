@@ -5,6 +5,7 @@ import 'package:round_ai/core/errors/failures.dart';
 import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/network/idempotency_key.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/features/ai/models/ai_envelope.dart';
 import 'package:round_ai/features/ai/models/summary_content.dart';
 import 'package:round_ai/features/ai/repository/ai_repository.dart';
@@ -219,6 +220,7 @@ class SummaryCubit extends Cubit<SummaryCardState> {
         emit(state.copyWith(phase: SummaryPhase.idle, error: error));
       case Ok<AiEnvelope>(:final value):
         _key = null;
+        markCensusDirty();
         emit(_withEnvelope(state, value, changes: state.changes + 1));
     }
   }
@@ -255,6 +257,7 @@ class SummaryCubit extends Cubit<SummaryCardState> {
           if (!isClosed) emit(state.copyWith(reviewError: error));
         }
       case Ok<AiEnvelope>(:final value):
+        markCensusDirty();
         emit(_withEnvelope(state, value, changes: state.changes + 1));
     }
   }

@@ -354,7 +354,7 @@ class _SuggestionTile extends StatelessWidget {
               children: <Widget>[
                 for (final String id in suggestion.factIds)
                   ActionChip(
-                    label: Text('Fact ${id.length > 6 ? id.substring(0, 6) : id}'),
+                    label: const Text('View chart source'),
                     onPressed: () => showSourceDrawer(
                       context,
                       claim: Claim(

@@ -38,11 +38,17 @@ class DemoHomeRepository implements HomeRepository {
             room: patient.room,
             ageLabel: _ageLabel(patient.detail),
             genderLabel: _genderLabel(patient.summary),
-            reason: _reason(patient.detail),
-            latestUpdate: patient.updatedLabel,
+            reason: patient.problem.isEmpty
+                ? _reason(patient.detail)
+                : patient.problem,
+            latestUpdate: patient.keyFinding.isEmpty
+                ? patient.updatedLabel
+                : patient.keyFinding,
             pendingTasks: openTasks
                 .where((ChartTask task) => task.patientId == patient.id)
                 .length,
+            noteStatus: patient.statusText,
+            pendingFacts: 0,
           ),
         )
         .toList();

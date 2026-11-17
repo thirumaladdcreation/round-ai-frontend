@@ -10,6 +10,8 @@ class ChartEntryScaffold extends StatelessWidget {
     required this.child,
     this.bottom,
     this.onRefresh,
+    this.patientName,
+    this.room,
     super.key,
   });
 
@@ -21,6 +23,10 @@ class ChartEntryScaffold extends StatelessWidget {
 
   /// Pull down to reload. Left out on screens that have nothing to reload.
   final Future<void> Function()? onRefresh;
+
+  /// Optional sticky patient identity under the screen title.
+  final String? patientName;
+  final String? room;
 
   Widget _body() {
     final Widget scroll = SingleChildScrollView(
@@ -59,12 +65,31 @@ class ChartEntryScaffold extends StatelessWidget {
                       icon: const Icon(Icons.arrow_back_rounded),
                     ),
                     Expanded(
-                      child: Text(
-                        title,
-                        style: AppTypography.semiBold(
-                          fontSize: 18,
-                          color: colors.textPrimary,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            title,
+                            style: AppTypography.semiBold(
+                              fontSize: 18,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          if (patientName != null && patientName!.isNotEmpty)
+                            Text(
+                              [
+                                patientName,
+                                if (room != null && room!.trim().isNotEmpty)
+                                  'Rm ${room!.trim()}',
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.regular(
+                                fontSize: 12,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ],

@@ -48,11 +48,21 @@ class DemoTeachingRepository implements TeachingRepository {
 
   TeachingQuestion _fromWorkspace(String topic) {
     PatientWorkspace? ws;
-    final String needle = topic.toLowerCase().split(' ').first;
+    final String topicLower = topic.toLowerCase().trim();
+    // Prefer exact topic match so "Elevated Pulse" does not fall through empty.
     for (final PatientWorkspace w in demoWorkspaces) {
-      if (w.question.topic.toLowerCase().contains(needle)) {
+      if (w.question.topic.toLowerCase().trim() == topicLower) {
         ws = w;
         break;
+      }
+    }
+    if (ws == null) {
+      final String needle = topicLower.split(' ').first;
+      for (final PatientWorkspace w in demoWorkspaces) {
+        if (w.question.topic.toLowerCase().contains(needle)) {
+          ws = w;
+          break;
+        }
       }
     }
     ws ??= demoWorkspaces.isEmpty ? null : demoWorkspaces.first;

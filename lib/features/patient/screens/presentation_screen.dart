@@ -6,6 +6,7 @@ import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/network/idempotency_key.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
+import 'package:round_ai/core/utils/clinical_format.dart';
 import 'package:round_ai/features/ai/models/ai_envelope.dart';
 import 'package:round_ai/features/ai/repository/ai_repository.dart';
 import 'package:round_ai/features/ai/repository/demo_ai_repository.dart';
@@ -329,7 +330,7 @@ class _PresentationScreenState extends State<PresentationScreen> {
             const SizedBox(height: 6),
             ...draft.missingInformation.map(
               (String m) => Text(
-                '• $m',
+                '• ${humanizeMissingToken(m)}',
                 style: AppTypography.regular(color: colors.textSecondary),
               ),
             ),

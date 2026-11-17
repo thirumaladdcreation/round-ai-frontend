@@ -7,6 +7,7 @@ import 'package:round_ai/core/errors/failures.dart';
 import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/network/idempotency_key.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/core/utils/json_utils.dart';
 import 'package:round_ai/features/ai/models/ai_envelope.dart';
 import 'package:round_ai/features/ai/repository/ai_repository.dart';
@@ -328,6 +329,7 @@ class NoteCubit extends Cubit<NoteDraftState> {
         emit(state.copyWith(generating: false, error: error));
       case Ok<AiEnvelope>(:final value):
         _generateKey = null;
+        markCensusDirty();
         emit(_withDraft(value, generating: false));
     }
   }
@@ -376,6 +378,7 @@ class NoteCubit extends Cubit<NoteDraftState> {
         emit(state.copyWith(generating: false, error: error));
       case Ok<AiEnvelope>(:final value):
         _generateKey = null;
+        markCensusDirty();
         emit(_withDraft(value, generating: false));
     }
   }
@@ -502,6 +505,7 @@ class NoteCubit extends Cubit<NoteDraftState> {
           ),
         );
       case Ok<AiEnvelope>(:final value):
+        markCensusDirty();
         emit(_withDraft(value));
     }
   }

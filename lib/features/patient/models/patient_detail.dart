@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:round_ai/core/utils/clinical_format.dart';
 import 'package:round_ai/core/utils/json_utils.dart';
 import 'package:round_ai/features/census/models/patient_summary.dart';
 import 'package:round_ai/features/patient/models/problem.dart';
@@ -10,14 +11,15 @@ class InsightItem extends Equatable {
   const InsightItem({required this.text, this.label = ''});
 
   factory InsightItem.fromJson(Object? json) {
-    if (json is! Map) return InsightItem(text: Json.string(json));
+    if (json is! Map) {
+      return InsightItem(text: humanizeMissingToken(Json.string(json)));
+    }
     final Map<String, dynamic> map = Json.map(json);
     final String label = Json.firstString(map, const <String>[
       'label',
       'name',
       'title',
       'metric',
-      'kind',
     ]);
     String text = Json.firstString(map, const <String>[
       'text',
@@ -27,16 +29,15 @@ class InsightItem extends Equatable {
       'message',
     ]);
     if (text.isEmpty) {
-      // Unknown shape: show the plain values, never hide them.
-      text = map.entries
-          .where(
-            (MapEntry<String, dynamic> e) =>
-                e.value is! Map && e.value is! List && e.key != 'id',
-          )
-          .map((MapEntry<String, dynamic> e) => '${e.key}: ${e.value}')
-          .join(' · ');
+      text = formatInsightMap(map);
     }
-    return InsightItem(label: label, text: text);
+    // Wire keys like clinician_plan should never appear as the label alone.
+    final String displayLabel =
+        label.contains('_') && text.isNotEmpty ? '' : label;
+    return InsightItem(
+      label: displayLabel,
+      text: text.isEmpty ? humanizeMissingToken(label) : text,
+    );
   }
 
   final String label;
@@ -76,7 +77,10 @@ class PatientDetail extends Equatable {
       problems: Json.maps(json['problems']).map(Problem.fromJson).toList(),
       missingInformation: InsightItem.list(
         json['missing_information'],
-      ).map((InsightItem i) => i.label.isEmpty ? i.text : i.label).toList(),
+      ).map((InsightItem i) {
+        final String raw = i.label.isEmpty ? i.text : i.label;
+        return humanizeMissingToken(raw);
+      }).toList(),
       trends: InsightItem.list(json['trends']),
       conflicts: InsightItem.list(json['conflicts']),
       tasks: Json.maps(json['tasks']).map(PatientTask.fromJson).toList(),

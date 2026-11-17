@@ -20,12 +20,10 @@ class HomeRepositoryImpl implements HomeRepository {
     this._storage, {
     RoundRepository? roundRepository,
     DateTime Function()? clock,
-  }) : _rounds = roundRepository,
-       _clock = clock ?? DateTime.now;
+  }) : _clock = clock ?? DateTime.now;
 
   final CensusRepository _census;
   final AppStorage _storage;
-  final RoundRepository? _rounds;
   final DateTime Function() _clock;
 
   @override
@@ -35,14 +33,9 @@ class HomeRepositoryImpl implements HomeRepository {
       case Err<List<PatientSummary>>(:final failure):
         return Err<HomeSnapshot>(failure);
       case Ok<List<PatientSummary>>(:final value):
-        RoundBriefCounts counts = _countsFromCensus(value);
-        final RoundRepository? rounds = _rounds;
-        if (rounds != null) {
-          final Result<RoundBrief> brief = await rounds.loadBrief();
-          if (brief case Ok<RoundBrief>(value: final RoundBrief briefValue)) {
-            counts = briefValue.counts;
-          }
-        }
+        // Census list is the source of truth for pending facts and summary
+        // state so Today stays consistent with Census after confirm/generate.
+        final RoundBriefCounts counts = _countsFromCensus(value);
         return Ok<HomeSnapshot>(_snapshot(value, counts));
     }
   }
@@ -93,22 +86,31 @@ class HomeRepositoryImpl implements HomeRepository {
   }
 
   HomePatientPreview _preview(PatientSummary p) {
+    final List<String> changeBits = <String>[
+      if (p.unreviewedFacts > 0)
+        '${p.unreviewedFacts} pending ${p.unreviewedFacts == 1 ? 'fact' : 'facts'}',
+      if (p.openTasks > 0)
+        '${p.openTasks} open ${p.openTasks == 1 ? 'task' : 'tasks'}',
+    ];
     return HomePatientPreview(
       id: p.id,
       name: p.displayName,
       room: p.room,
-      ageLabel: p.ageBand.isEmpty ? null : '${p.ageBand} yrs',
+      ageLabel: p.ageBand.isEmpty ? null : p.ageBand,
       genderLabel: switch (p.sex.toUpperCase()) {
         'F' => 'Female',
         'M' => 'Male',
         '' => null,
         _ => p.sex,
       },
-      reason: 'Summary · ${p.summaryState.label}',
-      latestUpdate: p.unreviewedFacts == 0
-          ? 'No unreviewed facts'
-          : '${p.unreviewedFacts} unreviewed ${p.unreviewedFacts == 1 ? 'fact' : 'facts'}',
+      // Census list does not carry a one-liner; meta + status stay honest.
+      reason: p.metaLine.isEmpty ? p.displayName : p.metaLine,
+      latestUpdate: changeBits.isEmpty
+          ? 'Ready for rounds'
+          : changeBits.join(' · '),
       pendingTasks: p.openTasks,
+      noteStatus: p.summaryState.label,
+      pendingFacts: p.unreviewedFacts,
     );
   }
 

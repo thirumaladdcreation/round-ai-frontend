@@ -22,7 +22,9 @@ import 'package:round_ai/features/problems/widgets/problems_card.dart';
 import 'package:round_ai/features/chat/utils/open_patient_thread.dart';
 import 'package:round_ai/features/patient/widgets/ask_patient_sheet.dart';
 import 'package:round_ai/features/patient/widgets/chart_data_card.dart';
+import 'package:round_ai/features/patient/widgets/patient_chrome.dart';
 import 'package:round_ai/shared/widgets/ai_state.dart';
+import 'package:round_ai/shared/widgets/app_button.dart';
 import 'package:round_ai/shared/widgets/retry_view.dart';
 import 'package:round_ai/shared/widgets/skeleton.dart';
 
@@ -61,10 +63,42 @@ class PatientOverviewScreen extends StatelessWidget {
   }
 }
 
-class PatientOverviewView extends StatelessWidget {
+class PatientOverviewView extends StatefulWidget {
   const PatientOverviewView({required this.patientId, super.key});
 
   final String patientId;
+
+  @override
+  State<PatientOverviewView> createState() => _PatientOverviewViewState();
+}
+
+class _PatientOverviewViewState extends State<PatientOverviewView> {
+  ValueNotifier<int>? _sync;
+  int _seen = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _sync = InjectionContainer.instance.censusSync.revision;
+      _seen = _sync!.value;
+      _sync!.addListener(_onCensusSync);
+    } catch (_) {}
+  }
+
+  void _onCensusSync() {
+    final ValueNotifier<int>? sync = _sync;
+    if (sync == null || !mounted) return;
+    if (sync.value == _seen) return;
+    _seen = sync.value;
+    context.read<PatientOverviewBloc>().add(const PatientOverviewRequested());
+  }
+
+  @override
+  void dispose() {
+    _sync?.removeListener(_onCensusSync);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,13 +116,14 @@ class PatientOverviewView extends StatelessWidget {
       },
       builder: (BuildContext context, PatientOverviewState state) {
         final PatientDetail? detail = state.detail;
+        final PatientSummary? patient = detail?.patient;
         return Scaffold(
           backgroundColor: colors.background,
           body: SafeArea(
             child: Column(
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
                   child: Row(
                     children: <Widget>[
                       IconButton(
@@ -96,13 +131,40 @@ class PatientOverviewView extends StatelessWidget {
                         onPressed: () => context.pop(),
                         icon: const Icon(Icons.arrow_back_rounded),
                       ),
-                      Text(
-                        'Patient Overview',
-                        style: AppTypography.semiBold(
-                          fontSize: 18,
-                          color: colors.textPrimary,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              patient?.displayName ?? 'Patient',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.semiBold(
+                                fontSize: 16,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            if (patient != null)
+                              Text(
+                                patient.room.trim().isEmpty
+                                    ? patient.metaLine
+                                    : 'Rm ${patient.room} · ${patient.metaLine}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.regular(
+                                  fontSize: 12,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
+                      if (patient != null && AppFeatures.notes)
+                        TextButton(
+                          onPressed: () =>
+                              context.push(AppRoutes.notePath(patient.id)),
+                          child: const Text('Create note'),
+                        ),
                     ],
                   ),
                 ),
@@ -132,6 +194,35 @@ class PatientOverviewView extends StatelessWidget {
                     ),
                   },
                 ),
+                if (patient != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                showAddUpdateSheet(context, patient.id),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: const Text('Add update'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: AppButton(
+                            label: AppFeatures.notes
+                                ? 'Create note'
+                                : 'Open plan',
+                            onPressed: () => context.push(
+                              AppFeatures.notes
+                                  ? AppRoutes.notePath(patient.id)
+                                  : AppRoutes.patientPlanPath(patient.id),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -155,25 +246,13 @@ class _Content extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: <Widget>[
         _Header(patient: patient),
-        const SizedBox(height: 16),
-        _Tabs(
-          index: 0,
-          onChanged: (int index) => _openSection(context, index, patient.id),
-        ),
-        const SizedBox(height: 16),
-        // Demo data keeps its canned card. The real backend gets the real one.
-        if (AppFeatures.summary && detail.demoSummary == null)
-          SummaryCard(
-            patientId: patient.id,
-            revision: detail.revision,
-            aiOff: InjectionContainer.instance.profileRepository.aiOff,
-            onChanged: () => context.read<PatientOverviewBloc>().add(
-              const PatientOverviewRequested(),
-            ),
-          )
-        else
-          _AiSummaryCard(detail: detail),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        _ChangesCard(state: state),
+        if (detail.trends.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 12),
+          _InsightCard(title: 'Key vitals & labs', items: detail.trends),
+        ],
+        const SizedBox(height: 12),
         ChartDataCard(
           patientId: patient.id,
           unreviewedFacts: patient.unreviewedFacts,
@@ -181,10 +260,6 @@ class _Content extends StatelessWidget {
             const PatientOverviewRequested(),
           ),
         ),
-        const SizedBox(height: 12),
-        _PlanCard(lines: detail.planToday),
-        // Real backend: problems can be suggested and decided. Demo data keeps
-        // its read-only list.
         if (detail.demoSummary == null) ...<Widget>[
           const SizedBox(height: 12),
           ProblemsCard(
@@ -200,13 +275,23 @@ class _Content extends StatelessWidget {
           _ProblemsCard(problems: detail.problems),
         ],
         const SizedBox(height: 12),
-        _ChangesCard(state: state),
+        _PlanCard(
+          patientId: patient.id,
+          lines: detail.planToday,
+          problems: detail.problems,
+        ),
         const SizedBox(height: 12),
-        _MissingCard(items: detail.missingInformation),
-        if (detail.trends.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 12),
-          _InsightCard(title: 'Trends', items: detail.trends),
-        ],
+        if (AppFeatures.summary && detail.demoSummary == null)
+          SummaryCard(
+            patientId: patient.id,
+            revision: detail.revision,
+            aiOff: InjectionContainer.instance.profileRepository.aiOff,
+            onChanged: () => context.read<PatientOverviewBloc>().add(
+              const PatientOverviewRequested(),
+            ),
+          )
+        else
+          _AiSummaryCard(detail: detail),
         if (detail.conflicts.isNotEmpty) ...<Widget>[
           const SizedBox(height: 12),
           _InsightCard(
@@ -214,24 +299,22 @@ class _Content extends StatelessWidget {
             items: detail.conflicts,
           ),
         ],
+        const SizedBox(height: 12),
+        _MissingCard(items: detail.missingInformation),
         const SizedBox(height: 16),
+        Text(
+          'More tools',
+          style: AppTypography.semiBold(
+            fontSize: 13,
+            color: AppColors.of(context).textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
         _Actions(patient: patient, problems: detail.problems),
       ],
     );
   }
 
-  void _openSection(BuildContext context, int index, String patientId) {
-    switch (index) {
-      case 1:
-        context.push(AppRoutes.notePath(patientId));
-      case 2:
-        context.push(AppRoutes.evidencePath(patientId));
-      case 3:
-        context.push(AppRoutes.patientTasksPath(patientId));
-      case 4:
-        context.push(AppRoutes.signOutPath(patientId));
-    }
-  }
 }
 
 class _Header extends StatelessWidget {
@@ -277,61 +360,6 @@ class _Header extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _Tabs extends StatelessWidget {
-  const _Tabs({required this.index, required this.onChanged});
-
-  final int index;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = AppColors.of(context);
-    // Tabs for screens that are not connected to the backend are hidden.
-    final List<(int, String)> tabs = <(int, String)>[
-      (0, 'Overview'),
-      if (AppFeatures.notes) (1, 'Notes'),
-      if (AppFeatures.evidence) (2, 'Evidence'),
-      if (AppFeatures.tasks) (3, 'Tasks'),
-      if (AppFeatures.signOut) (4, 'Sign-out'),
-    ];
-    if (tabs.length == 1) return const SizedBox.shrink();
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: tabs.map(((int, String) tab) {
-          final bool selected = tab.$1 == index;
-          return Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: InkWell(
-              onTap: () => onChanged(tab.$1),
-              child: Column(
-                children: <Widget>[
-                  Text(
-                    tab.$2,
-                    style: AppTypography.semiBold(
-                      color: selected ? colors.navy : colors.textMuted,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    height: 3,
-                    width: 28,
-                    decoration: BoxDecoration(
-                      color: selected ? colors.primary : Colors.transparent,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      ),
     );
   }
 }
@@ -481,32 +509,90 @@ class _AiSummaryCardState extends State<_AiSummaryCard> {
   }
 }
 
-class _PlanCard extends StatelessWidget {
-  const _PlanCard({required this.lines});
+class _PlanCard extends StatefulWidget {
+  const _PlanCard({
+    required this.patientId,
+    required this.lines,
+    this.problems = const <Problem>[],
+  });
 
+  final String patientId;
   final List<String> lines;
+  final List<Problem> problems;
+
+  @override
+  State<_PlanCard> createState() => _PlanCardState();
+}
+
+class _PlanCardState extends State<_PlanCard> {
+  bool _includeIcd = false;
+
+  String _lineWithCode(String line) {
+    if (!_includeIcd) return line;
+    for (final Problem p in widget.problems) {
+      final String? code = p.codeSuggestion?.code;
+      if (code == null || code.isEmpty) continue;
+      if (line.toLowerCase().contains(p.label.toLowerCase())) {
+        if (line.contains(code)) return line;
+        return '$line ($code)';
+      }
+    }
+    return line;
+  }
 
   @override
   Widget build(BuildContext context) {
     final AppColors colors = AppColors.of(context);
+    final bool hasCodes = widget.problems.any(
+      (Problem p) =>
+          p.codeSuggestion?.code != null &&
+          p.codeSuggestion!.code.trim().isNotEmpty,
+    );
     return _CardShell(
-      title: "Today's plan",
-      trailing: Text(
-        'Typed by you',
-        style: AppTypography.regular(fontSize: 11, color: colors.textMuted),
+      title: 'Assessment and Plan',
+      trailing: TextButton(
+        onPressed: () => context.push(AppRoutes.patientPlanPath(widget.patientId)),
+        child: Text(
+          'Edit',
+          style: AppTypography.semiBold(fontSize: 12, color: colors.primary),
+        ),
       ),
-      children: lines.isEmpty
-          ? <Widget>[const _NotEntered(label: "Today's plan")]
-          : <Widget>[
-              for (final String line in lines)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    '• $line',
-                    style: AppTypography.regular(height: 1.35),
-                  ),
-                ),
-            ],
+      children: <Widget>[
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: Text(
+            'Include ICD-10 codes',
+            style: AppTypography.regular(fontSize: 13, color: colors.textPrimary),
+          ),
+          subtitle: Text(
+            hasCodes
+                ? 'Codes appear beside matching diagnoses. Edit to change wording or codes.'
+                : 'No accepted codes yet — confirm problems, then Suggest codes under Problems.',
+            style: AppTypography.regular(fontSize: 11, color: colors.textMuted),
+          ),
+          value: _includeIcd,
+          onChanged: (bool v) => setState(() => _includeIcd = v),
+        ),
+        if (widget.lines.isEmpty)
+          Text(
+            "Edit to enter today's Assessment and Plan by problem. "
+            'A plan from dictation can prefill this after you review the note — no need to type it twice.',
+            style: AppTypography.regular(
+              fontSize: 13,
+              color: colors.textSecondary,
+            ),
+          )
+        else
+          for (final String line in widget.lines)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '• ${_lineWithCode(line)}',
+                style: AppTypography.regular(height: 1.35),
+              ),
+            ),
+      ],
     );
   }
 }
@@ -634,6 +720,16 @@ class _InsightCard extends StatelessWidget {
   final String title;
   final List<InsightItem> items;
 
+  static String _line(InsightItem item) {
+    final String text = item.text.trim();
+    final String label = item.label.trim();
+    if (text.isEmpty) return label;
+    if (label.isEmpty) return text;
+    // Avoid "Creatinine: Creatinine increased from…"
+    if (text.toLowerCase().startsWith(label.toLowerCase())) return text;
+    return '$label: $text';
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppColors colors = AppColors.of(context);
@@ -648,7 +744,7 @@ class _InsightCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
-              '• ${item.label.isEmpty ? '' : '${item.label}: '}${item.text}',
+              '• ${_line(item)}',
               style: AppTypography.regular(height: 1.35),
             ),
           ),

@@ -46,6 +46,32 @@ class CensusView extends StatefulWidget {
 
 class _CensusViewState extends State<CensusView> {
   _CensusFilter _filter = _CensusFilter.all;
+  ValueNotifier<int>? _sync;
+  int _seen = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _sync = InjectionContainer.instance.censusSync.revision;
+      _seen = _sync!.value;
+      _sync!.addListener(_onCensusSync);
+    } catch (_) {}
+  }
+
+  void _onCensusSync() {
+    final ValueNotifier<int>? sync = _sync;
+    if (sync == null || !mounted) return;
+    if (sync.value == _seen) return;
+    _seen = sync.value;
+    context.read<CensusBloc>().add(const CensusRequested());
+  }
+
+  @override
+  void dispose() {
+    _sync?.removeListener(_onCensusSync);
+    super.dispose();
+  }
 
   List<PatientSummary> _visible(List<PatientSummary> all) {
     return all.where((PatientSummary p) {
@@ -392,7 +418,9 @@ class PatientCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(
-                          patient.displayName,
+                          patient.room.trim().isEmpty
+                              ? patient.displayName
+                              : '${patient.room} · ${patient.displayName}',
                           style: AppTypography.semiBold(
                             fontSize: 16,
                             color: colors.textPrimary,

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:round_ai/core/utils/clinical_format.dart';
 import 'package:round_ai/core/utils/json_utils.dart';
 import 'package:round_ai/features/ai/models/ai_envelope.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
@@ -107,7 +108,10 @@ class SummaryContent extends Equatable {
       oneLiner: one == null || one.text.isEmpty ? null : one,
       sections: sections.where((SummarySection s) => !s.isEmpty).toList(),
       missingInformation: InsightItem.list(c['missing_information'])
-          .map((InsightItem i) => i.label.isEmpty ? i.text : i.label)
+          .map((InsightItem i) {
+            final String raw = i.label.isEmpty ? i.text : i.label;
+            return humanizeMissingToken(raw);
+          })
           .where((String s) => s.isNotEmpty)
           .toSet()
           .toList(),

@@ -36,11 +36,20 @@ VoidCallback? _onPressed(WidgetTester tester, String label) {
       .onPressed;
 }
 
+Future<void> _usePerField(WidgetTester tester) async {
+  final Finder advanced = find.text('Per-field (advanced)');
+  if (advanced.evaluate().isNotEmpty) {
+    await tester.tap(advanced);
+    await tester.pumpAndSettle();
+  }
+}
+
 Future<void> _pumpNote(
   WidgetTester tester,
   FakeNotesRepository notes,
   FakeAiRepository ai, {
   bool aiOff = false,
+  bool scribeMode = false,
 }) async {
   _wide(tester);
   await tester.pumpWidget(
@@ -54,6 +63,7 @@ Future<void> _pumpNote(
     ),
   );
   await tester.pumpAndSettle();
+  if (!scribeMode) await _usePerField(tester);
 }
 
 Future<void> _generate(WidgetTester tester) async {
@@ -441,6 +451,51 @@ void main() {
       );
       expect(_onPressed(tester, 'Generate draft'), isNull);
       expect(find.text(noteAiOffMessage), findsOneWidget);
+    });
+
+    testWidgets('dictation generate stays disabled until text is entered', (
+      WidgetTester tester,
+    ) async {
+      await _pumpNote(
+        tester,
+        FakeNotesRepository(),
+        FakeAiRepository(),
+        scribeMode: true,
+      );
+      expect(find.text('Write note from dictation'), findsWidgets);
+      expect(_onPressed(tester, 'Write note from dictation'), isNull);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Dictation'),
+        'Overnight creatinine rose; continue IVF and check labs.',
+      );
+      await tester.pump();
+      expect(_onPressed(tester, 'Write note from dictation'), isNotNull);
+    });
+
+    testWidgets('dictation failure keeps text and offers retry', (
+      WidgetTester tester,
+    ) async {
+      final FakeNotesRepository notes = FakeNotesRepository()
+        ..generated = Err<AiEnvelope>(
+          FakeAiRepository.failure('internal', status: 500),
+        );
+      await _pumpNote(tester, notes, FakeAiRepository(), scribeMode: true);
+      const String typed =
+          'Patient had fever overnight. Plan continue IVF and check labs.';
+      await tester.enterText(find.widgetWithText(TextField, 'Dictation'), typed);
+      await tester.pump();
+      await tester.tap(find.text('Write note from dictation').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Note generation failed'),
+        findsOneWidget,
+      );
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Dictation'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.widgetWithText(TextField, 'Dictation')).controller?.text,
+        typed,
+      );
     });
 
     testWidgets('templates that fail to load can be retried', (

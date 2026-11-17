@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:round_ai/core/errors/result.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/features/patient/repository/chart_data_repository.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 
@@ -27,6 +28,7 @@ class _SaveCubit extends Cubit<SaveState> {
       case Err<void>(:final failure):
         emit(SaveState(error: failure.message));
       case Ok<void>():
+        markCensusDirty();
         emit(const SaveState(saved: true));
     }
   }

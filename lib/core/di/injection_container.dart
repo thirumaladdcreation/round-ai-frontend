@@ -4,6 +4,7 @@ import 'package:round_ai/core/network/api_client.dart';
 import 'package:round_ai/core/router/app_router.dart';
 import 'package:round_ai/core/storage/app_storage.dart';
 import 'package:round_ai/core/storage/session_store.dart';
+import 'package:round_ai/core/sync/census_sync.dart';
 import 'package:round_ai/core/utils/app_log.dart';
 import 'package:round_ai/features/ai/repository/ai_repository.dart';
 import 'package:round_ai/features/ai/repository/ai_repository_impl.dart';
@@ -79,6 +80,7 @@ class InjectionContainer {
 
   late final SharedPreferences _sharedPreferences;
   late final AppStorage appStorage;
+  late final CensusSync censusSync;
   late final ApiClient apiClient;
   late final AuthRepository authRepository;
   late final ProfileRepository profileRepository;
@@ -116,6 +118,7 @@ class InjectionContainer {
     appStorage = AppStorage(_sharedPreferences, session: session);
     await appStorage.purgeLegacyToken();
     await session.restore();
+    censusSync = CensusSync();
     chatUnreadBadge = ChatUnreadBadge();
     chatPeople = ChatPeopleDirectory();
     apiClient = ApiClient(session: session, onUnauthorized: _endSession);

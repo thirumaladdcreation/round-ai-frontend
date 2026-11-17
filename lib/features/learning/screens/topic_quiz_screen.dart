@@ -76,9 +76,11 @@ class _TopicQuizScreenState extends State<TopicQuizScreen> {
             () => _error = _allowGenerate
                 ? 'No questions came back. Try again, or leave AI drafts off '
                     'and use the admin-approved bank.'
-                : 'No approved questions in the bank for this topic yet. '
-                    'Admin → Question bank: approve items, or turn on '
-                    '“Include AI-generated drafts” for labeled practice only.',
+                : 'No approved questions for “${widget.topic}” yet. '
+                    'Re-seed the demo DB (npm run seed after deleting the SQLite file) '
+                    'so Elevated Pulse / AKI banks load, or ask an admin to approve '
+                    'questions. You can also enable “Include AI-generated drafts” '
+                    'for labeled, unreviewed practice only.',
           );
         } else {
           setState(() {

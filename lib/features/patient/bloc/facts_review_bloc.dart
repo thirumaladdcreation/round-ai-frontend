@@ -3,6 +3,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:round_ai/core/errors/result.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/features/patient/models/fact.dart';
 import 'package:round_ai/features/patient/repository/chart_data_repository.dart';
 
@@ -194,6 +195,7 @@ class FactsReviewBloc extends Bloc<FactsReviewEvent, FactsReviewState> {
           ),
         );
       case Ok<void>():
+        markCensusDirty();
         emit(
           state.copyWith(
             busy: false,

@@ -19,6 +19,7 @@ import 'package:round_ai/features/notes/bloc/note_cubit.dart';
 import 'package:round_ai/features/notes/models/note_section.dart';
 import 'package:round_ai/features/notes/models/note_template.dart';
 import 'package:round_ai/features/notes/repository/notes_repository.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/features/patient/models/chart_source.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
 import 'package:round_ai/features/patient/repository/chart_data_repository.dart';
@@ -104,6 +105,8 @@ class _NoteViewState extends State<_NoteView> {
       <String, TextEditingController>{};
   int? _highlightStart;
   int? _highlightEnd;
+  String? _patientName;
+  String? _patientRoom;
 
   TextEditingController _field(String id) =>
       _fields.putIfAbsent(id, TextEditingController.new);
@@ -111,10 +114,38 @@ class _NoteViewState extends State<_NoteView> {
   @override
   void initState() {
     super.initState();
+    _transcript.addListener(_onTranscriptChanged);
+    _loadPatientIdentity();
     if (!AppEnvironment.useDemo) {
       _loadFeedSources();
       _loadSavedPlan();
     }
+  }
+
+  Future<void> _loadPatientIdentity() async {
+    try {
+      final Result<PatientDetail> result = await InjectionContainer
+          .instance
+          .patientRepository
+          .loadDetail(widget.patientId);
+      if (!mounted) return;
+      if (result case Ok<PatientDetail>(:final value)) {
+        setState(() {
+          _patientName = value.patient.displayName;
+          _patientRoom = value.patient.room;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _onTranscriptChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Require real clinical content — whitespace or a couple of characters is not enough.
+  bool get _scribeReady {
+    final String t = _transcript.text.trim();
+    return t.length >= 12;
   }
 
   Future<void> _loadSavedPlan() async {
@@ -169,6 +200,7 @@ class _NoteViewState extends State<_NoteView> {
 
   @override
   void dispose() {
+    _transcript.removeListener(_onTranscriptChanged);
     for (final TextEditingController c in _fields.values) {
       c.dispose();
     }
@@ -205,25 +237,122 @@ class _NoteViewState extends State<_NoteView> {
     return inputs;
   }
 
-  void _generate(NoteCubit cubit, NoteTemplate template) {
+  Future<void> _generate(NoteCubit cubit, NoteTemplate template) async {
+    final NoteDraftState state = cubit.state;
+    if (state.hasDraft) {
+      final bool? ok = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext dialog) => AlertDialog(
+          title: const Text('Replace draft?'),
+          content: const Text(
+            'Regenerating replaces the current draft and any manual edits. '
+            'Your dictation text stays. Continue?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Keep current'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Regenerate'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
     if (_scribeMode) {
+      if (!_scribeReady) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Enter a usable clinical update (at least a short sentence) before writing the note.',
+            ),
+          ),
+        );
+        return;
+      }
       final List<Map<String, String>> clarifications = <Map<String, String>>[
         for (final MapEntry<String, TextEditingController> e
             in _clarifyAnswers.entries)
           if (e.value.text.trim().isNotEmpty)
             <String, String>{'phrase': e.key, 'answer': e.value.text.trim()},
       ];
-      cubit.generateFromDictation(
+      await cubit.generateFromDictation(
         transcript: _transcript.text,
         clarifications: clarifications.isEmpty ? null : clarifications,
       );
+      if (!mounted) return;
+      // Dictation text stays in the field on success or failure — never cleared here.
+      await _offerPlanBridge(cubit);
       return;
     }
     final List<String> ids = _sourceIds.toList();
-    cubit.generate(
+    await cubit.generate(
       _inputs(template),
       inputsFromSourceIds: ids.isEmpty ? null : ids,
     );
+  }
+
+  /// If dictation produced an Assessment/Plan, offer to save it as today's plan
+  /// so the resident does not retype it on the patient page.
+  Future<void> _offerPlanBridge(NoteCubit cubit) async {
+    final NoteContent? content = cubit.state.content;
+    if (content == null) return;
+    NoteSection? plan;
+    for (final NoteSection s in content.sections) {
+      if (s.key == 'assessment_plan' ||
+          s.key == 'plan' ||
+          s.title.toLowerCase().contains('plan')) {
+        plan = s;
+        break;
+      }
+    }
+    if (plan == null) return;
+    final String text = plan.text.trim();
+    if (text.isEmpty || RegExp(r'not entered', caseSensitive: false).hasMatch(text)) {
+      return;
+    }
+    final bool? save = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialog) => AlertDialog(
+        title: const Text('Save Assessment and Plan?'),
+        content: const Text(
+          'This dictation included an Assessment and Plan. Save it on the '
+          'patient page so you do not have to enter it twice?',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Save to patient'),
+          ),
+        ],
+      ),
+    );
+    if (save != true || !mounted) return;
+    try {
+      final PatientRepository repo =
+          InjectionContainer.instance.patientRepository;
+      final List<String> lines = text
+          .split('\n')
+          .map((String l) => l.trim())
+          .where((String l) => l.isNotEmpty)
+          .toList();
+      final Result<void> result = await repo.savePlan(widget.patientId, lines);
+      if (!mounted) return;
+      if (result is Ok<void>) {
+        markCensusDirty();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Assessment and Plan saved.')),
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _edit(NoteSection section) async {
@@ -338,6 +467,8 @@ class _NoteViewState extends State<_NoteView> {
             : AiState.fromEnvelope(state.envelope);
         return ChartEntryScaffold(
           title: 'Draft note',
+          patientName: _patientName,
+          room: _patientRoom,
           bottom:
               state.templatesPhase != TemplatesPhase.ready || template == null
               ? null
@@ -345,7 +476,10 @@ class _NoteViewState extends State<_NoteView> {
                   state: state,
                   aiOff: widget.aiOff,
                   scribeMode: _scribeMode,
-                  onGenerate: () => _generate(cubit, template),
+                  canGenerate: !_scribeMode || _scribeReady,
+                  onGenerate: () {
+                    _generate(cubit, template);
+                  },
                   onCancel: cubit.cancel,
                 ),
           child: Column(
@@ -353,16 +487,27 @@ class _NoteViewState extends State<_NoteView> {
             children: <Widget>[
               Wrap(
                 spacing: 8,
+                runSpacing: 6,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: <Widget>[
                   AiStateChip(state: chip),
-                  if (state.hasDraft && !state.isReviewed)
-                    Text(
-                      'AI draft · review required',
-                      style: AppTypography.medium(
-                        fontSize: 11,
-                        color: colors.aiAccent,
-                      ),
+                  if (state.outdated)
+                    _StatusPill(
+                      label: 'Outdated',
+                      color: colors.warning,
+                      soft: colors.warningSoft,
+                    )
+                  else if (state.isReviewed)
+                    _StatusPill(
+                      label: 'Reviewed',
+                      color: colors.success,
+                      soft: colors.successSoft,
+                    )
+                  else if (state.hasDraft)
+                    _StatusPill(
+                      label: 'Draft · review required',
+                      color: colors.aiAccent,
+                      soft: colors.aiCard,
                     ),
                 ],
               ),
@@ -408,10 +553,9 @@ class _NoteViewState extends State<_NoteView> {
                 const SizedBox(height: 10),
                 Text(
                   _scribeMode
-                      ? 'Write note from dictation: speak or paste the whole '
-                            'update. The scribe cleans it, splits it into '
-                            'sections, and cites the transcript. It will not '
-                            'invent findings or a plan you did not say.'
+                      ? 'Speak or paste the whole update. Assessment and Plan '
+                            'you dictate can be saved back to the patient page '
+                            'so you do not enter it twice. Nothing is invented.'
                       : 'Advanced: type each section. Empty parts stay '
                             '"not entered". Chart-fact sections still use '
                             'confirmed facts only.',
@@ -428,8 +572,13 @@ class _NoteViewState extends State<_NoteView> {
                 const SizedBox(height: 12),
                 _ErrorBox(
                   error: state.error!,
-                  onRetry: state.error!.isRetryable
-                      ? () => _generate(cubit, template!)
+                  // Always offer retry for generation failures; dictation text is kept.
+                  onRetry: template != null &&
+                          state.error!.kind != ApiErrorKind.aiDisabled &&
+                          state.error!.kind != ApiErrorKind.dailyLimit
+                      ? () {
+                          _generate(cubit, template);
+                        }
                       : null,
                   onReviewFacts:
                       state.error!.kind == ApiErrorKind.noReviewedFacts
@@ -853,6 +1002,33 @@ class _NoteViewState extends State<_NoteView> {
   }
 }
 
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.label,
+    required this.color,
+    required this.soft,
+  });
+
+  final String label;
+  final Color color;
+  final Color soft;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: soft,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.medium(fontSize: 11, color: color),
+      ),
+    );
+  }
+}
+
 class _GenerateBar extends StatelessWidget {
   const _GenerateBar({
     required this.state,
@@ -860,11 +1036,13 @@ class _GenerateBar extends StatelessWidget {
     required this.onGenerate,
     required this.onCancel,
     this.scribeMode = true,
+    this.canGenerate = true,
   });
 
   final NoteDraftState state;
   final bool aiOff;
   final bool scribeMode;
+  final bool canGenerate;
   final VoidCallback onGenerate;
   final VoidCallback onCancel;
 
@@ -893,17 +1071,31 @@ class _GenerateBar extends StatelessWidget {
         ],
       );
     }
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: aiOff || state.busy ? null : onGenerate,
-        icon: const Icon(Icons.auto_awesome, size: 18),
-        label: Text(
-          state.hasDraft
-              ? 'Regenerate draft'
-              : (scribeMode ? 'Write note from dictation' : 'Generate draft'),
+    final bool enabled = !aiOff && !state.busy && canGenerate;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (scribeMode && !canGenerate)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Dictate or paste a clinical update (short sentence or more) to enable note writing.',
+              style: AppTypography.regular(
+                fontSize: 12,
+                color: colors.textMuted,
+              ),
+            ),
+          ),
+        FilledButton.icon(
+          onPressed: enabled ? onGenerate : null,
+          icon: const Icon(Icons.auto_awesome, size: 18),
+          label: Text(
+            state.hasDraft
+                ? 'Regenerate draft'
+                : (scribeMode ? 'Write note from dictation' : 'Generate draft'),
+          ),
         ),
-      ),
+      ],
     );
   }
 }

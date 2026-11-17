@@ -106,8 +106,10 @@ class _FactsReviewView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'These facts were read from your source text. Check each one '
-                'against the passage. Only confirmed facts are used by AI.',
+                'Check each fact against its source passage. Only confirmed '
+                'facts enter summaries and notes. Keep SpO₂ context (room air '
+                'vs supplemental O₂). A plan you dictate can fill Assessment '
+                'and Plan on the patient page — no need to enter it twice.',
                 style: AppTypography.regular(
                   fontSize: 13,
                   height: 1.4,
@@ -211,50 +213,56 @@ class FactReviewCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    fact.name,
-                    style: AppTypography.semiBold(
-                      fontSize: 14,
-                      color: colors.textPrimary,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          fact.name,
+                          style: AppTypography.semiBold(
+                            fontSize: 13,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        DateFormatter.dateTimeOrUnknown(fact.eventTime),
+                        style: AppTypography.regular(
+                          fontSize: 11,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
                     value.isEmpty ? 'Not entered' : value,
                     style: AppTypography.regular(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: value.isEmpty
                           ? colors.warning
                           : colors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    DateFormatter.dateTimeOrUnknown(fact.eventTime),
-                    style: AppTypography.regular(
-                      fontSize: 12,
-                      color: colors.textMuted,
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colors.inputFill,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      fact.passage == null || fact.passage!.trim().isEmpty
+                          ? 'No supporting passage stored for this fact.'
+                          : '"${fact.passage}"',
+                      style: AppTypography.regular(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: colors.textSecondary,
+                      ),
                     ),
                   ),
-                  if (fact.passage != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: colors.inputFill,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '“${fact.passage}”',
-                        style: AppTypography.regular(
-                          fontSize: 12,
-                          height: 1.35,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: <Widget>[

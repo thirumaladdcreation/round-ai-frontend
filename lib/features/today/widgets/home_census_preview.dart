@@ -14,13 +14,13 @@ class HomeCensusPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<HomePatientPreview> preview = snapshot.patients.take(4).toList();
+    final List<HomePatientPreview> preview = snapshot.patients;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         HomeSectionTitle(
-          title: 'Patient census',
-          action: snapshot.patients.isEmpty ? null : 'View all patients',
+          title: 'Patients',
+          action: preview.isEmpty ? null : 'Census',
           onAction: () => context.go(AppRoutes.census),
         ),
         if (preview.isEmpty)
@@ -31,11 +31,6 @@ class HomeCensusPreview extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 10),
               child: HomePatientTile(patient: patient),
             ),
-          ),
-        if (snapshot.hasPartialChart)
-          const HomeEmptyLine(
-            message:
-                'Age is shown only when the chart includes it. Gender is omitted when it is not recorded.',
           ),
       ],
     );
@@ -51,7 +46,7 @@ class HomePatientTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppColors colors = AppColors.of(context);
     final String meta = <String>[
-      'Room ${patient.room}',
+      if (patient.room.isNotEmpty) 'Rm ${patient.room}',
       if (patient.ageLabel != null) patient.ageLabel!,
       if (patient.genderLabel != null) patient.genderLabel!,
     ].join(' · ');
@@ -73,26 +68,41 @@ class HomePatientTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (patient.pendingTasks > 0)
+              if (patient.noteStatus.isNotEmpty)
                 Text(
-                  '${patient.pendingTasks} open',
-                  style: AppTypography.caption(color: colors.primary),
+                  patient.noteStatus,
+                  style: AppTypography.caption(
+                    color: patient.noteStatus == 'Not generated'
+                        ? colors.textMuted
+                        : colors.primary,
+                  ),
                 ),
               Icon(Icons.chevron_right_rounded, color: colors.textMuted),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(meta, style: AppTypography.caption(color: colors.textSecondary)),
+          if (meta.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(meta, style: AppTypography.caption(color: colors.textSecondary)),
+          ],
           const SizedBox(height: 6),
           Text(
             patient.reason,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: AppTypography.bodyMedium(color: colors.textPrimary),
           ),
           const SizedBox(height: 4),
           Text(
-            patient.latestUpdate.isEmpty
-                ? 'No update recorded'
-                : patient.latestUpdate,
+            <String>[
+              if (patient.pendingFacts > 0)
+                '${patient.pendingFacts} pending fact${patient.pendingFacts == 1 ? '' : 's'}',
+              if (patient.pendingTasks > 0)
+                '${patient.pendingTasks} open task${patient.pendingTasks == 1 ? '' : 's'}',
+              if (patient.pendingFacts == 0 && patient.pendingTasks == 0)
+                patient.latestUpdate.isEmpty
+                    ? 'Ready for rounds'
+                    : patient.latestUpdate,
+            ].join(' · '),
             style: AppTypography.caption(color: colors.textMuted),
           ),
         ],

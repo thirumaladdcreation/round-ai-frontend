@@ -14,10 +14,6 @@ import 'package:round_ai/features/today/repository/home_repository.dart';
 import 'package:round_ai/features/today/widgets/home_attention_section.dart';
 import 'package:round_ai/features/today/widgets/home_census_preview.dart';
 import 'package:round_ai/features/today/widgets/home_header.dart';
-import 'package:round_ai/features/today/widgets/home_morning_brief.dart';
-import 'package:round_ai/features/today/widgets/home_overview.dart';
-import 'package:round_ai/features/today/widgets/home_quick_actions.dart';
-import 'package:round_ai/features/today/widgets/home_rounds_card.dart';
 import 'package:round_ai/features/today/widgets/home_status_view.dart';
 
 class TodayScreen extends StatelessWidget {
@@ -36,8 +32,40 @@ class TodayScreen extends StatelessWidget {
   }
 }
 
-class HomeView extends StatelessWidget {
+class HomeView extends StatefulWidget {
   const HomeView({super.key});
+
+  @override
+  State<HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends State<HomeView> {
+  ValueNotifier<int>? _sync;
+  int _seen = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _sync = InjectionContainer.instance.censusSync.revision;
+      _seen = _sync!.value;
+      _sync!.addListener(_onCensusSync);
+    } catch (_) {}
+  }
+
+  void _onCensusSync() {
+    final ValueNotifier<int>? sync = _sync;
+    if (sync == null || !mounted) return;
+    if (sync.value == _seen) return;
+    _seen = sync.value;
+    context.read<HomeBloc>().add(const HomeRefreshed());
+  }
+
+  @override
+  void dispose() {
+    _sync?.removeListener(_onCensusSync);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,24 +135,29 @@ class HomeDashboardState extends State<HomeDashboard> {
               if (snapshot.isSynthetic) ...<Widget>[
                 const SizedBox(height: 8),
                 Text(
-                  'Synthetic team list. Nothing here is a signed note.',
+                  'Fictional demo list — not a signed chart.',
                   style: AppTypography.caption(color: colors.textMuted),
                 ),
               ],
-              const SizedBox(height: 20),
-              HomeMorningBrief(snapshot: snapshot),
-              HomeOverview(snapshot: snapshot),
-              const SizedBox(height: 16),
-              HomeRoundsCard(snapshot: snapshot),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
+              if (snapshot.briefCounts.headline.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    snapshot.briefCounts.headline,
+                    style: AppTypography.regular(
+                      fontSize: 13,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              // Patient list is the primary home action — open a patient and round.
               HomeCensusPreview(snapshot: snapshot),
               const SizedBox(height: 12),
               KeyedSubtree(
                 key: _attentionKey,
                 child: HomeAttentionSection(snapshot: snapshot),
               ),
-              const SizedBox(height: 12),
-              HomeQuickActions(snapshot: snapshot),
             ],
           ),
         ),

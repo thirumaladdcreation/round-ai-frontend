@@ -10,6 +10,8 @@ class HomePatientPreview {
     required this.pendingTasks,
     this.ageLabel,
     this.genderLabel,
+    this.noteStatus = '',
+    this.pendingFacts = 0,
   });
 
   final String id;
@@ -17,9 +19,15 @@ class HomePatientPreview {
   final String room;
   final String? ageLabel;
   final String? genderLabel;
+
+  /// One-liner / admission reason when known.
   final String reason;
   final String latestUpdate;
   final int pendingTasks;
+
+  /// Note/summary status label (e.g. Not generated, Draft ready).
+  final String noteStatus;
+  final int pendingFacts;
 }
 
 class HomeAttentionItem {
