@@ -89,12 +89,19 @@ class _SpacedReviewScreenState extends State<SpacedReviewScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  if (_items.isEmpty)
+                  if (_items.isEmpty) ...<Widget>[
                     Text(
-                      'Nothing is due for review.',
+                      'Nothing is due for review yet. Miss a quiz question to schedule spaced review (1 / 3 / 7 days).',
                       style: AppTypography.regular(color: colors.textSecondary),
-                    )
-                  else
+                    ),
+                    const SizedBox(height: 16),
+                    AppButton(
+                      label: 'Practice Elevated Pulse',
+                      onPressed: () => context.push(
+                        AppRoutes.topicQuizPath('Elevated Pulse'),
+                      ),
+                    ),
+                  ] else
                     ..._items.map(
                       (ReviewQueueItem item) => ListTile(
                         contentPadding: EdgeInsets.zero,

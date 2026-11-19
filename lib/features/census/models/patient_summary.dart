@@ -38,6 +38,8 @@ class PatientSummary extends Equatable {
     required this.unreviewedFacts,
     required this.openTasks,
     this.sortOrder = 0,
+    this.oneLiner = '',
+    this.keyChanges = const <String>[],
   });
 
   factory PatientSummary.fromJson(Map<String, dynamic> json) {
@@ -52,6 +54,8 @@ class PatientSummary extends Equatable {
       unreviewedFacts: Json.integer(json['unreviewed_facts']),
       openTasks: Json.integer(json['open_tasks']),
       sortOrder: Json.integer(json['sort_order']),
+      oneLiner: Json.string(json['one_liner']),
+      keyChanges: Json.strings(json['key_changes']),
     );
   }
 
@@ -119,6 +123,12 @@ class PatientSummary extends Equatable {
   /// Manual census order from the backend. Lower comes first.
   final int sortOrder;
 
+  /// Short clinical one-liner when the chart has problems/age.
+  final String oneLiner;
+
+  /// Human-readable key trends (e.g. creatinine change).
+  final List<String> keyChanges;
+
   PatientSummary copyWith({
     String? displayName,
     String? room,
@@ -128,6 +138,8 @@ class PatientSummary extends Equatable {
     int? unreviewedFacts,
     int? openTasks,
     int? sortOrder,
+    String? oneLiner,
+    List<String>? keyChanges,
   }) {
     return PatientSummary(
       id: id,
@@ -140,6 +152,8 @@ class PatientSummary extends Equatable {
       unreviewedFacts: unreviewedFacts ?? this.unreviewedFacts,
       openTasks: openTasks ?? this.openTasks,
       sortOrder: sortOrder ?? this.sortOrder,
+      oneLiner: oneLiner ?? this.oneLiner,
+      keyChanges: keyChanges ?? this.keyChanges,
     );
   }
 
@@ -153,5 +167,7 @@ class PatientSummary extends Equatable {
     unreviewedFacts,
     openTasks,
     sortOrder,
+    oneLiner,
+    keyChanges,
   ];
 }

@@ -75,12 +75,13 @@ class _TopicQuizScreenState extends State<TopicQuizScreen> {
           setState(
             () => _error = _allowGenerate
                 ? 'No questions came back. Try again, or leave AI drafts off '
-                    'and use the admin-approved bank.'
+                    'and use the admin-approved bank. Spaced review still works '
+                    'once you miss an approved question.'
                 : 'No approved questions for “${widget.topic}” yet. '
-                    'Re-seed the demo DB (npm run seed after deleting the SQLite file) '
-                    'so Elevated Pulse / AKI banks load, or ask an admin to approve '
-                    'questions. You can also enable “Include AI-generated drafts” '
-                    'for labeled, unreviewed practice only.',
+                    'Restart the backend (ensureRosaDemoCase backfills Elevated Pulse) '
+                    'or ask an admin to approve questions. You can enable '
+                    '“Include AI-generated drafts” for labeled practice only — '
+                    'then open Review queue after a miss.',
           );
         } else {
           setState(() {

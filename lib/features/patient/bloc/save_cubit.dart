@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/sync/census_sync_mark.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/repository/chart_data_repository.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 
@@ -54,4 +55,7 @@ class PlanEditorCubit extends _SaveCubit {
 
   Future<void> save(List<String> lines) =>
       run(() => _repository.savePlan(patientId, lines));
+
+  Future<void> saveStructured(PlanStructured plan) =>
+      run(() => _repository.saveStructuredPlan(patientId, plan));
 }

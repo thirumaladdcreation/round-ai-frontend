@@ -7,13 +7,14 @@ import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
 import 'package:round_ai/features/patient/bloc/save_cubit.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/models/problem.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 import 'package:round_ai/features/patient/widgets/chart_entry_scaffold.dart';
 import 'package:round_ai/shared/widgets/app_button.dart';
 import 'package:round_ai/shared/widgets/app_input.dart';
 
-/// Today's Assessment and Plan, typed by the clinician. AI never writes it.
+/// Problem-wise Assessment and Plan. AI never writes this section.
 class PlanEditorScreen extends StatefulWidget {
   const PlanEditorScreen({required this.patientId, this.repository, super.key});
 
@@ -25,7 +26,6 @@ class PlanEditorScreen extends StatefulWidget {
 }
 
 class _PlanEditorScreenState extends State<PlanEditorScreen> {
-  final TextEditingController _text = TextEditingController();
   late final PatientRepository _repository =
       widget.repository ?? InjectionContainer.instance.patientRepository;
   late final PlanEditorCubit _cubit = PlanEditorCubit(
@@ -38,9 +38,7 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
   String _room = '';
   List<Problem> _problems = const <Problem>[];
   bool _includeIcd = false;
-
-  /// Clinical wording without codes — preserved when toggling ICD on/off.
-  String _clinicalText = '';
+  final List<_ItemControllers> _items = <_ItemControllers>[];
 
   @override
   void initState() {
@@ -67,8 +65,46 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                     p.state == ProblemState.documented,
               )
               .toList();
-          _clinicalText = value.planToday.join('\n');
-          _text.text = _clinicalText;
+          _includeIcd = value.planStructured?.includeIcd ?? false;
+          _disposeItems();
+          final PlanStructured? structured = value.planStructured;
+          if (structured != null && structured.items.isNotEmpty) {
+            for (final PlanItem item in structured.items) {
+              _items.add(_ItemControllers.fromItem(item));
+            }
+          } else if (_problems.isNotEmpty) {
+            for (final Problem p in _problems) {
+              _items.add(
+                _ItemControllers(
+                  problemId: p.id,
+                  label: p.label,
+                  assessment: '',
+                  plan: '',
+                  code: p.codeSuggestion?.code,
+                ),
+              );
+            }
+            // Prefill plan lines into first matching problem when legacy text.
+            if (value.planToday.isNotEmpty) {
+              final String blob = value.planToday.join('\n');
+              for (final _ItemControllers c in _items) {
+                if (blob.toLowerCase().contains(c.label.text.toLowerCase()) &&
+                    c.plan.text.isEmpty) {
+                  c.plan.text = blob;
+                  break;
+                }
+              }
+            }
+          } else {
+            _items.add(
+              _ItemControllers(
+                problemId: null,
+                label: '',
+                assessment: '',
+                plan: value.planToday.join('\n'),
+              ),
+            );
+          }
           _loadError = null;
         case Err<PatientDetail>(:final failure):
           _loadError = failure.message;
@@ -76,72 +112,59 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
     });
   }
 
+  void _disposeItems() {
+    for (final _ItemControllers c in _items) {
+      c.dispose();
+    }
+    _items.clear();
+  }
+
   @override
   void dispose() {
-    _text.dispose();
+    _disposeItems();
     _cubit.close();
     super.dispose();
   }
 
-  void _applyIcdToggle(bool include) {
+  void _addProblem() {
     setState(() {
-      if (_includeIcd && !include) {
-        // Turning off: restore clinical wording (strip codes we appended).
-        _text.text = _clinicalText;
-      } else if (!_includeIcd && include) {
-        // Turning on: keep current clinical text as base, then append codes.
-        _clinicalText = _stripCodes(_text.text);
-        _text.text = _withCodes(_clinicalText);
-      }
-      _includeIcd = include;
+      _items.add(
+        _ItemControllers(problemId: null, label: '', assessment: '', plan: ''),
+      );
     });
   }
 
-  String _stripCodes(String raw) {
-    return raw
-        .split('\n')
-        .map((String line) {
-          return line
-              .replaceAll(RegExp(r'\s*\([A-Z]\d{2}(?:\.\d{1,4})?\)\s*$'), '')
-              .trimRight();
-        })
-        .join('\n');
+  void _removeAt(int index) {
+    setState(() {
+      _items.removeAt(index).dispose();
+      if (_items.isEmpty) {
+        _items.add(
+          _ItemControllers(
+            problemId: null,
+            label: '',
+            assessment: '',
+            plan: '',
+          ),
+        );
+      }
+    });
   }
 
-  String _withCodes(String raw) {
-    return raw
-        .split('\n')
-        .map((String line) {
-          final String trimmed = line.trimRight();
-          if (trimmed.isEmpty) return line;
-          for (final Problem p in _problems) {
-            final String? code = p.codeSuggestion?.code;
-            if (code == null || code.isEmpty) continue;
-            if (trimmed.toLowerCase().contains(p.label.toLowerCase())) {
-              if (trimmed.contains(code)) return trimmed;
-              return '$trimmed ($code)';
-            }
-          }
-          return trimmed;
-        })
-        .join('\n');
+  PlanStructured _buildPlan() {
+    final List<PlanItem> items = <PlanItem>[
+      for (final _ItemControllers c in _items)
+        PlanItem(
+          problemId: c.problemId,
+          label: c.label.text.trim(),
+          assessment: c.assessment.text.trim(),
+          plan: c.plan.text.trim(),
+          code: _includeIcd ? c.resolvedCode(_problems) : null,
+        ),
+    ].where((PlanItem i) => !i.isEmpty).toList();
+    return PlanStructured(includeIcd: _includeIcd, items: items);
   }
 
-  void _save() {
-    // Persist the clinical wording the clinician sees (with or without codes).
-    final String toSave = _text.text;
-    if (!_includeIcd) {
-      _clinicalText = toSave;
-    } else {
-      _clinicalText = _stripCodes(toSave);
-    }
-    final List<String> lines = toSave
-        .split('\n')
-        .map((String line) => line.trim())
-        .where((String line) => line.isNotEmpty)
-        .toList();
-    _cubit.save(lines);
-  }
+  void _save() => _cubit.saveStructured(_buildPlan());
 
   @override
   Widget build(BuildContext context) {
@@ -176,9 +199,9 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Organize by problem (problem, then plan under it). '
-                      'AI never writes this section. Dictation that includes a '
-                      'plan can prefill it after note review.',
+                      'Organize by problem. Assessment and Plan under each '
+                      'issue. AI never writes this section. Dictation that '
+                      'includes a plan can prefill it after note review.',
                       style: AppTypography.regular(
                         fontSize: 13,
                         color: colors.textSecondary,
@@ -197,64 +220,35 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                       subtitle: Text(
                         hasCodes
                             ? 'Accepted codes appear beside matching diagnoses. '
-                                'Toggle keeps your clinical wording.'
-                            : 'No accepted codes on problems yet. Confirm '
-                                'problems and accept ICD suggestions first — '
-                                'codes are not invented for specificity.',
+                                'Toggle keeps clinical wording.'
+                            : 'No accepted codes yet. Confirm problems and '
+                                'accept ICD suggestions first — codes are not invented.',
                         style: AppTypography.regular(
                           fontSize: 12,
                           color: colors.textMuted,
                         ),
                       ),
                       value: _includeIcd,
-                      onChanged: _loadError != null ? null : _applyIcdToggle,
+                      onChanged: _loadError != null
+                          ? null
+                          : (bool v) => setState(() => _includeIcd = v),
                     ),
-                    if (_includeIcd && _problems.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 4),
-                      for (final Problem p in _problems)
-                        if (p.codeSuggestion?.code != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              '${p.label} → ${p.codeSuggestion!.code}'
-                              '${p.codeSuggestion!.description.isEmpty ? '' : ' · ${p.codeSuggestion!.description}'}',
-                              style: AppTypography.regular(
-                                fontSize: 12,
-                                color: colors.textSecondary,
-                              ),
-                            ),
-                          )
-                        else if (p.state.canSuggestCodes)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              '${p.label} — code needed (review documentation)',
-                              style: AppTypography.regular(
-                                fontSize: 12,
-                                color: colors.warning,
-                              ),
-                            ),
-                          ),
-                    ],
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _text,
-                      enabled: _loadError == null,
-                      minLines: 8,
-                      maxLines: 16,
-                      keyboardType: TextInputType.multiline,
-                      onChanged: (String v) {
-                        if (!_includeIcd) _clinicalText = v;
-                      },
-                      decoration: appInputDecoration(
-                        context,
-                        label: 'Assessment and Plan',
-                        hint:
-                            'AKI — hold diuresis; recheck creatinine this evening\n'
-                            'CAP — continue ceftriaxone; follow cultures',
+                    const SizedBox(height: 8),
+                    for (int i = 0; i < _items.length; i++) ...<Widget>[
+                      _ProblemBlock(
+                        index: i,
+                        controllers: _items[i],
+                        includeIcd: _includeIcd,
+                        problems: _problems,
+                        onRemove: _items.length > 1 ? () => _removeAt(i) : null,
                       ),
+                      const SizedBox(height: 12),
+                    ],
+                    TextButton.icon(
+                      onPressed: _loadError != null ? null : _addProblem,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add problem'),
                     ),
-                    const FreeTextHint(),
                     if (_loadError != null || state.error != null) ...<Widget>[
                       const SizedBox(height: 12),
                       Text(
@@ -269,6 +263,153 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                 ),
         );
       },
+    );
+  }
+}
+
+class _ItemControllers {
+  _ItemControllers({
+    required this.problemId,
+    required String label,
+    required String assessment,
+    required String plan,
+    this.code,
+  }) : label = TextEditingController(text: label),
+       assessment = TextEditingController(text: assessment),
+       plan = TextEditingController(text: plan);
+
+  factory _ItemControllers.fromItem(PlanItem item) {
+    return _ItemControllers(
+      problemId: item.problemId,
+      label: item.label,
+      assessment: item.assessment,
+      plan: item.plan,
+      code: item.code,
+    );
+  }
+
+  final String? problemId;
+  final TextEditingController label;
+  final TextEditingController assessment;
+  final TextEditingController plan;
+  final String? code;
+
+  String? resolvedCode(List<Problem> problems) {
+    if (code != null && code!.isNotEmpty) return code;
+    for (final Problem p in problems) {
+      if (problemId != null && p.id == problemId) {
+        return p.codeSuggestion?.code;
+      }
+      if (p.label.toLowerCase() == label.text.trim().toLowerCase()) {
+        return p.codeSuggestion?.code;
+      }
+    }
+    return null;
+  }
+
+  void dispose() {
+    label.dispose();
+    assessment.dispose();
+    plan.dispose();
+  }
+}
+
+class _ProblemBlock extends StatelessWidget {
+  const _ProblemBlock({
+    required this.index,
+    required this.controllers,
+    required this.includeIcd,
+    required this.problems,
+    this.onRemove,
+  });
+
+  final int index;
+  final _ItemControllers controllers;
+  final bool includeIcd;
+  final List<Problem> problems;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = AppColors.of(context);
+    final String? code = includeIcd
+        ? controllers.resolvedCode(problems)
+        : null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'Problem ${index + 1}'
+                  '${code == null || code.isEmpty ? '' : ' ($code)'}',
+                  style: AppTypography.semiBold(
+                    fontSize: 14,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              if (onRemove != null)
+                IconButton(
+                  tooltip: 'Remove',
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controllers.label,
+            decoration: appInputDecoration(
+              context,
+              label: 'Diagnosis / problem',
+              hint: 'e.g. Acute kidney injury',
+            ),
+          ),
+          if (includeIcd && (code == null || code.isEmpty))
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Code needed — review documentation and accept an ICD suggestion.',
+                style: AppTypography.regular(
+                  fontSize: 12,
+                  color: colors.warning,
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: controllers.assessment,
+            minLines: 2,
+            maxLines: 5,
+            decoration: appInputDecoration(
+              context,
+              label: 'Assessment',
+              hint: 'Clinical assessment for this problem',
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: controllers.plan,
+            minLines: 2,
+            maxLines: 5,
+            decoration: appInputDecoration(
+              context,
+              label: 'Plan',
+              hint: 'Clinician-entered plan only',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

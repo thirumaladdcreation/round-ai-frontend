@@ -13,22 +13,27 @@ fly secrets set CORS_ORIGIN="https://round-ai-admin.vercel.app,https://YOUR-APP.
 
 No bare `*` when multiple apps are listed. Restart/redeploy the Fly app after secrets change.
 
-## Build locally, then deploy static output
+## Preferred: Git-connected Vercel project
 
-Vercel does not ship Flutter SDK by default — build on a machine with Flutter, then upload `build/web`.
+Root `vercel.json` must match the Vercel project settings:
+
+| Setting | Value |
+|---|---|
+| Build Command | `bash scripts/vercel-build.sh` |
+| Output Directory | `build/web` |
+| Install Command | skipped (Flutter deps install inside the build script) |
+| Framework | Other / none |
+
+`scripts/vercel-build.sh` installs Flutter on the builder, runs `flutter build web`, and copies `vercel.json` into `build/web` for SPA rewrites.
+
+Redeploy from `main` after push. Confirm https://round-ai-one.vercel.app loads `index.html` (not a bare 404).
+
+## Alternate: build locally, then deploy static output
 
 ```bash
-cd round_ai
-flutter pub get
-flutter build web --release --no-wasm-dry-run \
-  --dart-define=API_BASE_URL=https://round-ai-backend.fly.dev \
-  --dart-define=APP_ENV=production \
-  --dart-define=DEMO_HINTS=true
-
-# Copy vercel.json into the output (Flutter may not copy root config)
-cp vercel.json build/web/
-
-# Deploy the static folder
+cd round-ai-frontend
+bash scripts/vercel-build.sh
+# or: flutter build web … then cp vercel.json build/web/
 npx vercel build/web --prod
 ```
 

@@ -9,6 +9,7 @@ import 'package:round_ai/core/media/temp_media.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/network/idempotency_key.dart';
 import 'package:round_ai/core/router/app_routes.dart';
+import 'package:round_ai/core/sync/census_sync.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
 import 'package:round_ai/features/patient/widgets/chart_entry_scaffold.dart';
@@ -140,6 +141,9 @@ class _PatientIntakeScreenState extends State<PatientIntakeScreen> {
           _error = failure.apiError.userMessage;
         });
       case Ok(:final value):
+        try {
+          markCensusDirty();
+        } catch (_) {}
         setState(() {
           _busy = false;
           _done = value;
@@ -256,6 +260,20 @@ class _PatientIntakeScreenState extends State<PatientIntakeScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: 16),
+            AppButton(
+              label: done.pendingFactCount > 0
+                  ? 'Review facts'
+                  : 'Open fact review',
+              onPressed: () => context.push(
+                AppRoutes.patientFactsPath(widget.patientId),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => context.pop(),
+              child: const Text('Back to patient'),
+            ),
           ] else if (dictate) ...<Widget>[
             if (_recording)
               Row(

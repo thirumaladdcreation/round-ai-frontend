@@ -5,6 +5,7 @@ import 'package:round_ai/core/errors/failures.dart';
 import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/network/idempotency_key.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/features/patient/models/problem.dart';
 import 'package:round_ai/features/problems/repository/problems_repository.dart';
 
@@ -143,6 +144,7 @@ class ProblemsCubit extends Cubit<ProblemsState> {
       case Err<void>(:final failure):
         emit(state.copyWith(clearBusy: true, error: failure.apiError));
       case Ok<void>():
+        markCensusDirty();
         emit(
           state.copyWith(
             clearBusy: true,

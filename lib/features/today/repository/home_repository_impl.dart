@@ -92,6 +92,12 @@ class HomeRepositoryImpl implements HomeRepository {
       if (p.openTasks > 0)
         '${p.openTasks} open ${p.openTasks == 1 ? 'task' : 'tasks'}',
     ];
+    final String reason = p.oneLiner.trim().isNotEmpty
+        ? p.oneLiner.trim()
+        : (p.metaLine.isEmpty ? p.displayName : p.metaLine);
+    final String latest = p.keyChanges.isNotEmpty
+        ? p.keyChanges.take(2).join(' · ')
+        : (changeBits.isEmpty ? 'Ready for rounds' : changeBits.join(' · '));
     return HomePatientPreview(
       id: p.id,
       name: p.displayName,
@@ -103,11 +109,8 @@ class HomeRepositoryImpl implements HomeRepository {
         '' => null,
         _ => p.sex,
       },
-      // Census list does not carry a one-liner; meta + status stay honest.
-      reason: p.metaLine.isEmpty ? p.displayName : p.metaLine,
-      latestUpdate: changeBits.isEmpty
-          ? 'Ready for rounds'
-          : changeBits.join(' · '),
+      reason: reason,
+      latestUpdate: latest,
       pendingTasks: p.openTasks,
       noteStatus: p.summaryState.label,
       pendingFacts: p.unreviewedFacts,

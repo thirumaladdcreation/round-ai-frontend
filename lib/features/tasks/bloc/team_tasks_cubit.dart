@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:round_ai/core/errors/failures.dart';
 import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/network/api_error.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/features/census/models/patient_summary.dart';
 import 'package:round_ai/features/census/repository/census_repository.dart';
 import 'package:round_ai/features/tasks/models/patient_task.dart';
@@ -146,6 +147,7 @@ class TeamTasksCubit extends Cubit<TeamTasksState> {
       case Err<void>(:final failure):
         emit(state.copyWith(clearBusy: true, actionError: failure.apiError));
       case Ok<void>():
+        markCensusDirty();
         emit(state.copyWith(clearBusy: true));
         await load();
     }

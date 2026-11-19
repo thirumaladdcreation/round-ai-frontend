@@ -108,8 +108,15 @@ class _NoteViewState extends State<_NoteView> {
   String? _patientName;
   String? _patientRoom;
 
-  TextEditingController _field(String id) =>
-      _fields.putIfAbsent(id, TextEditingController.new);
+  TextEditingController _field(String id) {
+    return _fields.putIfAbsent(id, () {
+      final TextEditingController c = TextEditingController();
+      c.addListener(() {
+        if (mounted && !_scribeMode) setState(() {});
+      });
+      return c;
+    });
+  }
 
   @override
   void initState() {
@@ -148,6 +155,17 @@ class _NoteViewState extends State<_NoteView> {
     return t.length >= 12;
   }
 
+  /// Advanced mode: at least one clinician field or saved plan must have text.
+  bool get _advancedReady {
+    if (_savedPlan.trim().isNotEmpty) return true;
+    for (final TextEditingController c in _fields.values) {
+      if (c.text.trim().isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  bool get _canGenerate => _scribeMode ? _scribeReady : _advancedReady;
+
   Future<void> _loadSavedPlan() async {
     final PatientRepository? repo;
     try {
@@ -161,7 +179,14 @@ class _NoteViewState extends State<_NoteView> {
       case Err<PatientDetail>():
         return;
       case Ok<PatientDetail>(:final value):
-        final String text = value.planToday.join('\n').trim();
+        // Prefer structured plan so ICD preference matches the saved A&P.
+        final String text = value.planStructured != null &&
+                value.planStructured!.items.isNotEmpty
+            ? value.planStructured!
+                .toDisplayLines(withIcd: value.planStructured!.includeIcd)
+                .join('\n')
+                .trim()
+            : value.planToday.join('\n').trim();
         if (text.isEmpty) return;
         setState(() => _savedPlan = text);
         // Prefill empty Assessment/Plan inputs for every template type.
@@ -274,6 +299,18 @@ class _NoteViewState extends State<_NoteView> {
         );
         return;
       }
+    } else if (!_advancedReady) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Enter at least one clinician field before generating an advanced draft.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (_scribeMode) {
       final List<Map<String, String>> clarifications = <Map<String, String>>[
         for (final MapEntry<String, TextEditingController> e
             in _clarifyAnswers.entries)
@@ -476,7 +513,7 @@ class _NoteViewState extends State<_NoteView> {
                   state: state,
                   aiOff: widget.aiOff,
                   scribeMode: _scribeMode,
-                  canGenerate: !_scribeMode || _scribeReady,
+                  canGenerate: _canGenerate,
                   onGenerate: () {
                     _generate(cubit, template);
                   },
@@ -1075,11 +1112,13 @@ class _GenerateBar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (scribeMode && !canGenerate)
+        if (!canGenerate)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              'Dictate or paste a clinical update (short sentence or more) to enable note writing.',
+              scribeMode
+                  ? 'Dictate or paste a clinical update (short sentence or more) to enable note writing.'
+                  : 'Enter at least one clinician field (or save today’s Assessment and Plan) before generating.',
               style: AppTypography.regular(
                 fontSize: 12,
                 color: colors.textMuted,

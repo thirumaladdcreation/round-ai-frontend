@@ -5,6 +5,7 @@ import 'package:round_ai/core/network/api_endpoints.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/utils/json_utils.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 
 class PatientRepositoryImpl implements PatientRepository {
@@ -63,6 +64,38 @@ class PatientRepositoryImpl implements PatientRepository {
       await _client.put<Object>(
         ApiEndpoints.patientPlan(patientId),
         data: <String, String>{'text': text},
+      );
+      return const Ok<void>(null);
+    } on ApiError catch (error) {
+      return Err<void>(ApiFailure(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> saveStructuredPlan(
+    String patientId,
+    PlanStructured plan,
+  ) async {
+    final List<PlanItem> items = plan.items
+        .where((PlanItem i) => !i.isEmpty)
+        .toList();
+    if (items.isEmpty) {
+      return Err<void>(
+        ApiFailure(
+          const ApiError(
+            code: 'text_required',
+            message: 'Enter at least one Assessment and Plan item.',
+          ),
+        ),
+      );
+    }
+    try {
+      await _client.put<Object>(
+        ApiEndpoints.patientPlan(patientId),
+        data: <String, Object>{
+          'include_icd': plan.includeIcd,
+          'items': items.map((PlanItem i) => i.toJson()).toList(),
+        },
       );
       return const Ok<void>(null);
     } on ApiError catch (error) {

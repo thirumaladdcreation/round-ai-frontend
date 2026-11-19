@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:round_ai/core/utils/clinical_format.dart';
 import 'package:round_ai/core/utils/json_utils.dart';
 import 'package:round_ai/features/census/models/patient_summary.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/models/problem.dart';
 import 'package:round_ai/features/tasks/models/patient_task.dart';
 
@@ -61,6 +62,7 @@ class PatientDetail extends Equatable {
     required this.patient,
     required this.revision,
     this.planToday = const <String>[],
+    this.planStructured,
     this.problems = const <Problem>[],
     this.missingInformation = const <String>[],
     this.trends = const <InsightItem>[],
@@ -70,10 +72,14 @@ class PatientDetail extends Equatable {
   });
 
   factory PatientDetail.fromJson(Map<String, dynamic> json) {
+    final PlanStructured? structured = json['plan_structured'] == null
+        ? null
+        : PlanStructured.fromJson(json['plan_structured']);
     return PatientDetail(
       patient: PatientSummary.fromJson(json),
       revision: Json.integer(json['revision']),
       planToday: _lines(json['plan_today']),
+      planStructured: structured,
       problems: Json.maps(json['problems']).map(Problem.fromJson).toList(),
       missingInformation: InsightItem.list(
         json['missing_information'],
@@ -112,6 +118,7 @@ class PatientDetail extends Equatable {
   /// Chart revision. It goes up whenever confirmed facts or the plan change.
   final int revision;
   final List<String> planToday;
+  final PlanStructured? planStructured;
   final List<Problem> problems;
   final List<String> missingInformation;
   final List<InsightItem> trends;
@@ -128,6 +135,7 @@ class PatientDetail extends Equatable {
     patient,
     revision,
     planToday,
+    planStructured,
     problems,
     missingInformation,
     trends,

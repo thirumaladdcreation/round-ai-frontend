@@ -153,6 +153,17 @@ Team chat for the signed-in clinician’s team (backend M5). Messages may contai
 
 Contract gaps vs backend (client workarounds): no `client_message_id`, no `last_activity`, no leave/archive, no teammates API, no `reply_count` field (client counts from loaded messages).
 
+## Rosa demo path (fictional)
+
+Use `resident@rounds.test` / `ChangeMe-12345` against a seeded backend:
+
+1. **Census / Today** — open **Rosa Martinez (fictional)** (room 509A). Home rows show a one-liner and key lab/vital changes when present.
+2. **Add update** — dictate or photo → review extracted facts (pending until confirmed).
+3. **Problems** — CAP / AKI / Elevated Pulse; accept coding suggestions when offered.
+4. **Assessment & Plan** — edit problem-wise A&P; toggle **Include ICD-10** (wording stays; codes only when accepted).
+5. **Create note** — one primary action on the patient screen; dictation or advanced fields; copy after mark reviewed (export uses saved plan ICD preference).
+6. **Learn** — quiz **Elevated Pulse** (5 options); miss once to schedule spaced review (1 / 3 / 7 days).
+
 ## Scribe / Round / Teaching
 
 ### Scribe

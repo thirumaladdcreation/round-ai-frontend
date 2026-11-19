@@ -6,6 +6,7 @@ import 'package:round_ai/features/census/models/patient_summary.dart';
 import 'package:round_ai/features/census/repository/demo_census_repository.dart';
 import 'package:round_ai/features/patient/data/patient_workspace.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 
 /// Canned detail for `USE_DEMO=true`. Nothing leaves the device.
@@ -77,6 +78,15 @@ class DemoPatientRepository implements PatientRepository {
   @override
   Future<Result<void>> savePlan(String patientId, List<String> lines) async {
     _plans[patientId] = lines;
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<Result<void>> saveStructuredPlan(
+    String patientId,
+    PlanStructured plan,
+  ) async {
+    _plans[patientId] = plan.toDisplayLines(withIcd: plan.includeIcd);
     return const Ok<void>(null);
   }
 }

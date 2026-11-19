@@ -5,6 +5,7 @@ import 'package:round_ai/core/errors/failures.dart';
 import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/network/idempotency_key.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 import 'package:round_ai/features/tasks/models/patient_task.dart';
@@ -211,6 +212,7 @@ class PatientTasksCubit extends Cubit<PatientTasksState> {
       case Err<void>(:final failure):
         emit(state.copyWith(clearBusy: true, actionError: failure.apiError));
       case Ok<void>():
+        markCensusDirty();
         emit(state.copyWith(clearBusy: true, changes: state.changes + 1));
         await _reloadTasks();
     }

@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:round_ai/core/config/app_environment.dart';
 import 'package:round_ai/core/config/app_features.dart';
 import 'package:round_ai/core/di/injection_container.dart';
+import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/router/app_routes.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
 import 'package:round_ai/features/ai/repository/ai_repository.dart';
@@ -15,6 +17,7 @@ import 'package:round_ai/features/census/data/demo_patients.dart';
 import 'package:round_ai/features/census/models/patient_summary.dart';
 import 'package:round_ai/features/patient/bloc/patient_overview_bloc.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/models/problem.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 import 'package:round_ai/features/problems/repository/problems_repository.dart';
@@ -159,12 +162,6 @@ class _PatientOverviewViewState extends State<PatientOverviewView> {
                           ],
                         ),
                       ),
-                      if (patient != null && AppFeatures.notes)
-                        TextButton(
-                          onPressed: () =>
-                              context.push(AppRoutes.notePath(patient.id)),
-                          child: const Text('Create note'),
-                        ),
                     ],
                   ),
                 ),
@@ -278,6 +275,7 @@ class _Content extends StatelessWidget {
         _PlanCard(
           patientId: patient.id,
           lines: detail.planToday,
+          structured: detail.planStructured,
           problems: detail.problems,
         ),
         const SizedBox(height: 12),
@@ -513,11 +511,13 @@ class _PlanCard extends StatefulWidget {
   const _PlanCard({
     required this.patientId,
     required this.lines,
+    this.structured,
     this.problems = const <Problem>[],
   });
 
   final String patientId;
   final List<String> lines;
+  final PlanStructured? structured;
   final List<Problem> problems;
 
   @override
@@ -525,19 +525,106 @@ class _PlanCard extends StatefulWidget {
 }
 
 class _PlanCardState extends State<_PlanCard> {
-  bool _includeIcd = false;
+  late bool _includeIcd;
+  bool _savingIcd = false;
 
-  String _lineWithCode(String line) {
-    if (!_includeIcd) return line;
+  @override
+  void initState() {
+    super.initState();
+    _includeIcd = widget.structured?.includeIcd ?? false;
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlanCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.structured?.includeIcd != widget.structured?.includeIcd &&
+        !_savingIcd) {
+      _includeIcd = widget.structured?.includeIcd ?? false;
+    }
+  }
+
+  String? _codeFor(String label) {
     for (final Problem p in widget.problems) {
       final String? code = p.codeSuggestion?.code;
       if (code == null || code.isEmpty) continue;
-      if (line.toLowerCase().contains(p.label.toLowerCase())) {
-        if (line.contains(code)) return line;
-        return '$line ($code)';
+      if (p.label.toLowerCase() == label.toLowerCase() ||
+          label.toLowerCase().contains(p.label.toLowerCase())) {
+        return code.trim();
       }
     }
-    return line;
+    return null;
+  }
+
+  List<String> get _previewLines {
+    final PlanStructured? structured = widget.structured;
+    if (structured != null && structured.items.isNotEmpty) {
+      return structured.toDisplayLines(withIcd: _includeIcd);
+    }
+    if (!_includeIcd) return widget.lines;
+    return <String>[
+      for (final String line in widget.lines)
+        () {
+          final String? code = _codeFor(line);
+          if (code == null || line.contains(code)) return line;
+          return '$line ($code)';
+        }(),
+    ];
+  }
+
+  Future<void> _onIcdChanged(bool value) async {
+    setState(() {
+      _includeIcd = value;
+      _savingIcd = true;
+    });
+    final PlanStructured base = widget.structured ??
+        PlanStructured(
+          includeIcd: value,
+          items: <PlanItem>[
+            for (final String line in widget.lines)
+              if (line.trim().isNotEmpty)
+                PlanItem(label: line.trim()),
+          ],
+        );
+    // Prefer flipping include_icd only; keep codes on items so toggling back on
+    // does not invent new codes and still uses clinician-accepted ones.
+    final PlanStructured next = base.copyWith(
+      includeIcd: value,
+      items: <PlanItem>[
+        for (final PlanItem item in base.items)
+          item.copyWith(
+            code: item.code?.isNotEmpty == true
+                ? item.code
+                : _codeFor(item.label),
+          ),
+      ],
+    );
+    try {
+      final Result<void> result = await InjectionContainer
+          .instance
+          .patientRepository
+          .saveStructuredPlan(widget.patientId, next);
+      if (!mounted) return;
+      if (result case Err<void>()) {
+        setState(() {
+          _includeIcd = !value;
+          _savingIcd = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save ICD preference.')),
+        );
+        return;
+      }
+      markCensusDirty();
+      context.read<PatientOverviewBloc>().add(const PatientOverviewRequested());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _includeIcd = !value;
+        _savingIcd = false;
+      });
+    } finally {
+      if (mounted) setState(() => _savingIcd = false);
+    }
   }
 
   @override
@@ -548,6 +635,7 @@ class _PlanCardState extends State<_PlanCard> {
           p.codeSuggestion?.code != null &&
           p.codeSuggestion!.code.trim().isNotEmpty,
     );
+    final List<String> lines = _previewLines;
     return _CardShell(
       title: 'Assessment and Plan',
       trailing: TextButton(
@@ -567,14 +655,14 @@ class _PlanCardState extends State<_PlanCard> {
           ),
           subtitle: Text(
             hasCodes
-                ? 'Codes appear beside matching diagnoses. Edit to change wording or codes.'
+                ? 'Codes appear beside matching diagnoses. Preference is saved with the plan.'
                 : 'No accepted codes yet — confirm problems, then Suggest codes under Problems.',
             style: AppTypography.regular(fontSize: 11, color: colors.textMuted),
           ),
           value: _includeIcd,
-          onChanged: (bool v) => setState(() => _includeIcd = v),
+          onChanged: _savingIcd ? null : _onIcdChanged,
         ),
-        if (widget.lines.isEmpty)
+        if (lines.isEmpty)
           Text(
             "Edit to enter today's Assessment and Plan by problem. "
             'A plan from dictation can prefill this after you review the note — no need to type it twice.',
@@ -584,11 +672,11 @@ class _PlanCardState extends State<_PlanCard> {
             ),
           )
         else
-          for (final String line in widget.lines)
+          for (final String line in lines)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
-                '• ${_lineWithCode(line)}',
+                '• $line',
                 style: AppTypography.regular(height: 1.35),
               ),
             ),
@@ -884,12 +972,6 @@ class _Actions extends StatelessWidget {
           icon: Icons.campaign_outlined,
           label: 'Prepare\nPresentation',
           onTap: () => context.push(AppRoutes.presentationPath(patientId)),
-        ),
-      if (AppFeatures.notes)
-        _ActionTile(
-          icon: Icons.description_outlined,
-          label: 'Draft\nNote',
-          onTap: () => context.push(AppRoutes.notePath(patientId)),
         ),
       if (AppFeatures.evidence)
         _ActionTile(
