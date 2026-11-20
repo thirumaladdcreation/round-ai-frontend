@@ -20,6 +20,7 @@ import 'package:round_ai/features/patient/bloc/patient_overview_bloc.dart';
 import 'package:round_ai/features/patient/models/chart_source.dart';
 import 'package:round_ai/features/patient/models/fact.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/repository/chart_data_repository.dart';
 import 'package:round_ai/features/patient/repository/chart_data_repository_impl.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
@@ -764,6 +765,13 @@ class _FakePatients implements PatientRepository {
 
   @override
   Future<Result<void>> savePlan(String patientId, List<String> lines) async =>
+      const Ok<void>(null);
+
+  @override
+  Future<Result<void>> saveStructuredPlan(
+    String patientId,
+    PlanStructured plan,
+  ) async =>
       const Ok<void>(null);
 }
 

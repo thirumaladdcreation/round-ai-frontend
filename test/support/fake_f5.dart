@@ -14,6 +14,7 @@ import 'package:round_ai/features/evidence/repository/evidence_repository.dart';
 import 'package:round_ai/features/learning/models/mcq_draft.dart';
 import 'package:round_ai/features/learning/repository/teach_repository.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 import 'package:round_ai/features/signout/models/contingency.dart';
 import 'package:round_ai/features/signout/repository/signout_repository.dart';
@@ -421,6 +422,15 @@ class FakePatientRepository implements PatientRepository {
   @override
   Future<Result<void>> savePlan(String patientId, List<String> lines) async {
     plan = lines;
+    return const Ok<void>(null);
+  }
+
+  @override
+  Future<Result<void>> saveStructuredPlan(
+    String patientId,
+    PlanStructured structured,
+  ) async {
+    plan = structured.toDisplayLines(withIcd: structured.includeIcd);
     return const Ok<void>(null);
   }
 }

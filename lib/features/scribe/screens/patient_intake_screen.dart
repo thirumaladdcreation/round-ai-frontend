@@ -9,7 +9,7 @@ import 'package:round_ai/core/media/temp_media.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/network/idempotency_key.dart';
 import 'package:round_ai/core/router/app_routes.dart';
-import 'package:round_ai/core/sync/census_sync.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
 import 'package:round_ai/features/patient/widgets/chart_entry_scaffold.dart';
