@@ -40,15 +40,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Good afternoon'), findsOneWidget);
-    expect(find.textContaining('Dr. Alex'), findsOneWidget);
+    expect(find.textContaining('Alex'), findsOneWidget);
+    expect(find.text('Smarter rounds. Better care.'), findsOneWidget);
     expect(find.text('Start New Round'), findsOneWidget);
     expect(find.text('Recent Patients'), findsOneWidget);
     expect(find.text('RoundsAI Assistant'), findsOneWidget);
+    expect(find.text('My Patients'), findsOneWidget);
+    expect(find.text('AI Monitoring'), findsOneWidget);
     // Repetitive rounds / prepare CTAs are gone from Home.
     expect(find.text('Open rounds'), findsNothing);
     expect(find.text('Prepare for Rounds'), findsNothing);
     expect(find.text("Today's Rounds"), findsNothing);
-    expect(find.text('My Patients'), findsNothing);
     await tester.scrollUntilVisible(find.textContaining('509A'), 200);
     expect(find.textContaining('509A'), findsOneWidget);
     expect(tester.takeException(), isNull);

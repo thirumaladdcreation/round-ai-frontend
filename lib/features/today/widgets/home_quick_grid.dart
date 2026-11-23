@@ -15,7 +15,7 @@ class HomeQuickGrid extends StatelessWidget {
     final List<_QuickItem> items = <_QuickItem>[
       _QuickItem(
         label: 'My Patients',
-        icon: Icons.assignment_outlined,
+        icon: Icons.groups_rounded,
         tint: const Color(0xFF087CFF),
         soft: const Color(0xFFE8F3FF),
         onTap: () => context.go(AppRoutes.census),
@@ -23,22 +23,22 @@ class HomeQuickGrid extends StatelessWidget {
       _QuickItem(
         label: 'AI Monitoring',
         icon: Icons.monitor_heart_outlined,
-        tint: const Color(0xFF0A8F9C),
-        soft: const Color(0xFFD6F3F6),
+        tint: const Color(0xFF7C5CFC),
+        soft: const Color(0xFFF0EEFF),
         onTap: () => context.go(AppRoutes.rounds),
       ),
       _QuickItem(
         label: 'Analytics',
-        icon: Icons.insights_outlined,
-        tint: const Color(0xFF6B5CE7),
-        soft: const Color(0xFFF0EEFF),
+        icon: Icons.bar_chart_rounded,
+        tint: const Color(0xFF12B76A),
+        soft: const Color(0xFFE8F8F0),
         onTap: () => context.go(AppRoutes.learning),
       ),
       _QuickItem(
         label: 'Settings',
         icon: Icons.settings_outlined,
-        tint: const Color(0xFF5B6B7A),
-        soft: const Color(0xFFEEF2F5),
+        tint: const Color(0xFF087CFF),
+        soft: const Color(0xFFE8F3FF),
         onTap: () => context.go(AppRoutes.profile),
       ),
     ];

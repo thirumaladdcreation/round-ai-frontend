@@ -63,17 +63,27 @@ class HomeHeader extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        Text(
-          snapshot.dateLabel,
-          style: AppTypography.semiBold(
-            fontSize: 18,
-            height: 24 / 18,
-            color: ink,
+        Text.rich(
+          TextSpan(
+            children: <InlineSpan>[
+              TextSpan(
+                text: '${snapshot.greeting}, ${_displayName(snapshot.clinicianName)} ',
+                style: AppTypography.semiBold(
+                  fontSize: 22,
+                  height: 28 / 22,
+                  color: ink,
+                ),
+              ),
+              const TextSpan(
+                text: '👋',
+                style: TextStyle(fontSize: 22, height: 28 / 22),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          _countsLine(snapshot),
+          'Smarter rounds. Better care.',
           style: AppTypography.regular(
             fontSize: 14,
             height: 20 / 14,
@@ -84,23 +94,11 @@ class HomeHeader extends StatelessWidget {
     );
   }
 
-  String _countsLine(HomeSnapshot snapshot) {
-    final List<String> parts = <String>[
-      if (snapshot.patientCount > 0)
-        snapshot.patientCount == 1
-            ? '1 patient'
-            : '${snapshot.patientCount} patients',
-      if (snapshot.pendingTaskCount > 0)
-        snapshot.pendingTaskCount == 1
-            ? '1 open task'
-            : '${snapshot.pendingTaskCount} open tasks',
-      if (snapshot.draftsAwaitingReview > 0)
-        snapshot.draftsAwaitingReview == 1
-            ? '1 draft to review'
-            : '${snapshot.draftsAwaitingReview} drafts to review',
-    ];
-    if (parts.isEmpty) return snapshot.greeting;
-    return parts.join(' · ');
+  /// Prefer a short clinician display name (strip leading "Dr." for mockup tone).
+  String _displayName(String raw) {
+    final String trimmed = raw.trim();
+    if (trimmed.isEmpty) return 'Doctor';
+    return trimmed.replaceFirst(RegExp(r'^Dr\.?\s+', caseSensitive: false), '');
   }
 
   bool get _chatAvailable {

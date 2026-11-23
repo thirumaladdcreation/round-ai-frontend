@@ -12,8 +12,10 @@ import 'package:round_ai/features/today/bloc/home_event.dart';
 import 'package:round_ai/features/today/bloc/home_state.dart';
 import 'package:round_ai/features/today/models/home_snapshot.dart';
 import 'package:round_ai/features/today/repository/home_repository.dart';
+import 'package:round_ai/features/today/widgets/home_assistant_card.dart';
 import 'package:round_ai/features/today/widgets/home_census_preview.dart';
 import 'package:round_ai/features/today/widgets/home_header.dart';
+import 'package:round_ai/features/today/widgets/home_quick_grid.dart';
 import 'package:round_ai/features/today/widgets/home_status_view.dart';
 
 class TodayScreen extends StatelessWidget {
@@ -170,8 +172,11 @@ class HomeDashboardState extends State<HomeDashboard> {
                     snapshot: snapshot,
                     onNotifications: () {},
                   ),
+                  const SizedBox(height: 16),
+                  const HomeAssistantCard(),
+                  const SizedBox(height: 14),
+                  const HomeQuickGrid(),
                   const SizedBox(height: 18),
-                  // Patient list is the only focus on Today (P3).
                   HomeCensusPreview(snapshot: snapshot),
                 ],
               ),
