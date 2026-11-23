@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:round_ai/app/app_colors.dart';
 import 'package:round_ai/app/app_typography.dart';
-import 'package:round_ai/core/constants/app_assets.dart';
 import 'package:round_ai/core/di/injection_container.dart';
 import 'package:round_ai/core/router/app_routes.dart';
 import 'package:round_ai/core/sync/patient_status_store.dart';
