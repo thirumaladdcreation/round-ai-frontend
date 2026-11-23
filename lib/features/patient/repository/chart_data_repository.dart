@@ -51,4 +51,22 @@ abstract class ChartDataRepository {
   });
 
   Future<Result<void>> addFact(String patientId, NewFact fact);
+
+  /// Inline edit of a pending fact.
+  Future<Result<Fact>> editFact(
+    String factId, {
+    String? name,
+    String? value,
+    String? unit,
+    String? qualifier,
+  });
+
+  Future<Result<List<PlanProposal>>> planProposals(String patientId);
+
+  Future<Result<List<FactWarning>>> extractWarnings(String patientId);
+
+  Future<Result<void>> acceptPlanProposals(
+    String patientId,
+    List<PlanProposal> proposals,
+  );
 }

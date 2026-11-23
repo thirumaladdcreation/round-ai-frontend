@@ -7,11 +7,13 @@ import 'package:round_ai/core/router/app_routes.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
 import 'package:round_ai/core/utils/external_link.dart';
+import 'package:round_ai/core/utils/hospital_clock.dart';
 import 'package:round_ai/features/learning/models/teaching_plan.dart';
 import 'package:round_ai/features/learning/models/teaching_reads.dart';
 import 'package:round_ai/features/learning/repository/demo_teaching_repository.dart';
 import 'package:round_ai/features/learning/repository/teaching_repository.dart';
 import 'package:round_ai/shared/widgets/app_button.dart';
+import 'package:round_ai/shared/widgets/app_input.dart';
 
 /// Learn tab: census-derived topics (no patient names), quiz, reads, guidelines.
 class LearningScreen extends StatefulWidget {
@@ -28,6 +30,8 @@ class _LearningScreenState extends State<LearningScreen> {
   String? _error;
   TeachingPlan? _plan;
   GuidelineUpdatesFeed? _guidelines;
+  final TextEditingController _filter = TextEditingController();
+  String _filterText = '';
 
   TeachingRepository get _repo {
     if (widget.repository != null) return widget.repository!;
@@ -41,7 +45,30 @@ class _LearningScreenState extends State<LearningScreen> {
   @override
   void initState() {
     super.initState();
+    _filter.addListener(() {
+      final String next = _filter.text.trim().toLowerCase();
+      if (next == _filterText) return;
+      setState(() => _filterText = next);
+    });
     _load();
+  }
+
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
+  List<TeachingTopic> get _filteredTopics {
+    final List<TeachingTopic> topics = _plan?.topics ?? const <TeachingTopic>[];
+    if (_filterText.isEmpty) return topics;
+    return topics
+        .where(
+          (TeachingTopic t) =>
+              t.topic.toLowerCase().contains(_filterText) ||
+              t.topicKey.contains(_filterText),
+        )
+        .toList();
   }
 
   Future<void> _load() async {
@@ -49,7 +76,9 @@ class _LearningScreenState extends State<LearningScreen> {
       _loading = true;
       _error = null;
     });
-    final Result<TeachingPlan> plan = await _repo.loadPlan();
+    final Result<TeachingPlan> plan = await _repo.loadPlan(
+      date: HospitalClock.todayIsoDate(),
+    );
     final Result<GuidelineUpdatesFeed> guidelines =
         await _repo.loadGuidelineUpdates();
     if (!mounted) return;
@@ -118,6 +147,18 @@ class _LearningScreenState extends State<LearningScreen> {
                         color: colors.textSecondary,
                       ),
                     ),
+                    if (HospitalClock.demoMode ||
+                        (HospitalClock.runtimeDemoClockIso?.isNotEmpty ??
+                            false)) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Demo clock · ${HospitalClock.todayIsoDate()}',
+                        style: AppTypography.medium(
+                          fontSize: 12,
+                          color: colors.warning,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerLeft,
@@ -128,6 +169,19 @@ class _LearningScreenState extends State<LearningScreen> {
                         label: const Text('Spaced review queue'),
                       ),
                     ),
+                    if (plan != null && plan.topics.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
+                      TextField(
+                        controller: _filter,
+                        decoration: appInputDecoration(
+                          context,
+                          label: 'Filter topics',
+                          hint: 'Search by topic name',
+                        ).copyWith(
+                          prefixIcon: const Icon(Icons.search_rounded),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     if (plan == null || plan.topics.isEmpty)
                       Container(
@@ -138,20 +192,40 @@ class _LearningScreenState extends State<LearningScreen> {
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: colors.border),
                         ),
-                        child: Text(
-                          'No teaching topics yet. Confirm or mark differential '
-                          'problems on a patient chart — Learn builds generic '
-                          'topics from the census (no patient names). Quiz items '
-                          'come from the admin-approved question bank.',
-                          style: AppTypography.regular(
-                            fontSize: 13,
-                            height: 1.4,
-                            color: colors.textSecondary,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              'No teaching topics yet. Confirm or mark differential '
+                              'problems on a patient chart — Learn builds generic '
+                              'topics from the census (no patient names).',
+                              style: AppTypography.regular(
+                                fontSize: 13,
+                                height: 1.4,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            AppButton(
+                              label: 'Practice Elevated Pulse bank',
+                              onPressed: () => context.push(
+                                AppRoutes.topicQuizPath('Elevated Pulse'),
+                              ),
+                              expand: false,
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_filteredTopics.isEmpty)
+                      Text(
+                        'No topics match “${_filter.text.trim()}”.',
+                        style: AppTypography.regular(
+                          fontSize: 13,
+                          color: colors.textSecondary,
                         ),
                       )
                     else
-                      ...plan.topics.map(
+                      ..._filteredTopics.map(
                         (TeachingTopic t) => _TopicTile(topic: t),
                       ),
                     const SizedBox(height: 24),

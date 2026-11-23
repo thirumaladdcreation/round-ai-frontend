@@ -82,7 +82,7 @@ class _SpacedReviewScreenState extends State<SpacedReviewScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 children: <Widget>[
                   Text(
-                    'Spaced review uses 1, 3 and 7 day intervals. Approved bank questions only.',
+                    'Missed approved questions appear here immediately, then follow 1 / 3 / 7 day spacing after you answer again.',
                     style: AppTypography.regular(
                       fontSize: 13,
                       color: colors.textSecondary,
@@ -91,7 +91,7 @@ class _SpacedReviewScreenState extends State<SpacedReviewScreen> {
                   const SizedBox(height: 16),
                   if (_items.isEmpty) ...<Widget>[
                     Text(
-                      'Nothing is due for review yet. Miss a quiz question to schedule spaced review (1 / 3 / 7 days).',
+                      'Nothing is due right now. Open Elevated Pulse, answer incorrectly once, then return here to retry.',
                       style: AppTypography.regular(color: colors.textSecondary),
                     ),
                     const SizedBox(height: 16),

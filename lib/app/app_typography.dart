@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:round_ai/core/utils/screen_utils.dart';
 
-/// Poppins styles for the whole app. Weights are the bundled font files.
+/// Plus Jakarta Sans across Home, Patients, Patient detail, Rounds, etc.
 ///
-/// Omit [color] so the style inherits [DefaultTextStyle] / the active theme
-/// (works in both light and dark). Pass an explicit color only when needed.
+/// Weights: headings 700, names/sections/buttons 600, body 400, labels 400–500.
+/// Omit [color] so the style inherits [DefaultTextStyle] / the active theme.
 class AppTypography {
   const AppTypography._();
 
-  static const String fontFamily = 'Poppins';
+  static const String fontFamily = 'PlusJakartaSans';
   static const String interFamily = 'Inter';
 
   static TextStyle inter(TextStyle style) {
@@ -56,11 +56,55 @@ class AppTypography {
     );
   }
 
+  /// Design-system roles (Prompt 8 §4). Prefer these over ad-hoc sizes.
+  static TextStyle screenTitle({Color? color}) {
+    return _style(
+      weight: FontWeight.w600,
+      fontSize: 24,
+      height: 30 / 24,
+      color: color,
+      letterSpacing: -0.2,
+    );
+  }
+
   static TextStyle sectionHeading({Color? color}) {
     return _style(
       weight: FontWeight.w600,
       fontSize: 18,
-      height: 1.25,
+      height: 24 / 18,
+      color: color,
+    );
+  }
+
+  /// Alias of [sectionHeading] for the locked 18/24 role.
+  static TextStyle sectionHeader({Color? color}) => sectionHeading(color: color);
+
+  /// Body / clinical values — 16 / 22.
+  static TextStyle clinicalBody({Color? color}) {
+    return _style(
+      weight: FontWeight.w400,
+      fontSize: 16,
+      height: 22 / 16,
+      color: color,
+    );
+  }
+
+  /// Secondary text — 14 / 20.
+  static TextStyle secondaryText({Color? color}) {
+    return _style(
+      weight: FontWeight.w400,
+      fontSize: 14,
+      height: 20 / 14,
+      color: color,
+    );
+  }
+
+  /// Caption / metadata only — 12 / 16 (never clinical values).
+  static TextStyle captionMeta({Color? color}) {
+    return _style(
+      weight: FontWeight.w400,
+      fontSize: 12,
+      height: 16 / 12,
       color: color,
     );
   }
@@ -137,7 +181,7 @@ class AppTypography {
     );
   }
 
-  /// Existing screens call these four helpers. They now resolve to Poppins.
+  /// Existing screens call these four helpers.
   static TextStyle regular({
     Color? color,
     double fontSize = 14,

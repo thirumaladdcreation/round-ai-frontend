@@ -21,6 +21,21 @@ flutter build web --release --no-wasm-dry-run \
   --dart-define="APP_ENV=$APP_ENV" \
   --dart-define="DEMO_HINTS=$DEMO_HINTS"
 
-# SPA rewrites must live next to the static output for some deploy modes.
-cp vercel.json build/web/vercel.json
+# Static deploy of build/web must NOT inherit root buildCommand (that re-triggers Flutter on Vercel).
+cat > build/web/vercel.json <<'EOF'
+{
+  "rewrites": [
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ]
+}
+EOF
 echo "Built build/web successfully."

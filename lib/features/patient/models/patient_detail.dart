@@ -9,7 +9,11 @@ import 'package:round_ai/features/tasks/models/patient_task.dart';
 /// One line the backend computed from the chart, such as a trend, a conflict
 /// or a change. It may arrive as plain text or as an object, so both are read.
 class InsightItem extends Equatable {
-  const InsightItem({required this.text, this.label = ''});
+  const InsightItem({
+    required this.text,
+    this.label = '',
+    this.factIds = const <String>[],
+  });
 
   factory InsightItem.fromJson(Object? json) {
     if (json is! Map) {
@@ -22,27 +26,37 @@ class InsightItem extends Equatable {
       'title',
       'metric',
     ]);
-    String text = Json.firstString(map, const <String>[
+    final String rawText = Json.firstString(map, const <String>[
       'text',
       'detail',
       'description',
       'summary',
       'message',
     ]);
-    if (text.isEmpty) {
-      text = formatInsightMap(map);
-    }
+    // Trend/conflict objects always go through the clinical formatter so
+    // wire keys (delta, direction, fact_ids) never reach the resident UI.
+    final String text =
+        looksLikeTrendMap(map) || looksLikeConflictMap(map) || rawText.isEmpty
+        ? formatInsightMap(map)
+        : rawText;
     // Wire keys like clinician_plan should never appear as the label alone.
     final String displayLabel =
-        label.contains('_') && text.isNotEmpty ? '' : label;
+        (label.contains('_') || looksLikeTrendMap(map) || looksLikeConflictMap(map)) &&
+            text.isNotEmpty
+        ? ''
+        : label;
     return InsightItem(
       label: displayLabel,
       text: text.isEmpty ? humanizeMissingToken(label) : text,
+      factIds: insightFactIdsRaw(map),
     );
   }
 
   final String label;
   final String text;
+
+  /// Linked chart facts for conflict source review (never shown as raw IDs).
+  final List<String> factIds;
 
   static List<InsightItem> list(Object? value) {
     if (value is! List) return const <InsightItem>[];
@@ -53,7 +67,7 @@ class InsightItem extends Equatable {
   }
 
   @override
-  List<Object> get props => <Object>[label, text];
+  List<Object> get props => <Object>[label, text, factIds];
 }
 
 /// `GET /patients/:id`.

@@ -2,8 +2,9 @@ class AppConstants {
   const AppConstants._();
 
   static const String appName = 'RoundsAI';
-  static const Duration connectTimeout = Duration(seconds: 15);
-  static const Duration receiveTimeout = Duration(seconds: 15);
+  /// Fly trial / free machines cold-start can exceed 15s; keep headroom.
+  static const Duration connectTimeout = Duration(seconds: 45);
+  static const Duration receiveTimeout = Duration(seconds: 45);
 
   /// AI calls are synchronous on the backend and can take about a minute.
   static const Duration aiReceiveTimeout = Duration(seconds: 90);
@@ -18,4 +19,7 @@ class AppConstants {
   static const String clinicianNameKey = 'clinician_name';
   static const String selectedTeamIdKey = 'selected_team_id';
   static const String themeModeKey = 'theme_mode';
+
+  /// In-progress note compose text keyed as `note_compose_<patientId>`.
+  static const String noteComposeKeyPrefix = 'note_compose_';
 }

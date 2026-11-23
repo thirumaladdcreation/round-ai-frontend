@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -47,14 +48,27 @@ class _PatientIntakeScreenState extends State<PatientIntakeScreen> {
   bool _busy = false;
   String? _error;
   IntakeResult? _done;
+  CancelToken? _uploadCancel;
+  String? _lastIdempotencyKey;
 
   @override
   void dispose() {
+    _uploadCancel?.cancel();
     if (_recording) {
       _capture.cancelRecording();
     }
     _capture.dispose();
     super.dispose();
+  }
+
+  void _cancelUpload() {
+    _uploadCancel?.cancel('user_cancelled');
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error =
+          'Upload cancelled. Your recording/photo was not sent — try again when ready.';
+    });
   }
 
   Future<void> _startDictate() async {
@@ -128,22 +142,34 @@ class _PatientIntakeScreenState extends State<PatientIntakeScreen> {
   }
 
   Future<void> _upload(TempMedia media) async {
+    _uploadCancel?.cancel();
+    final CancelToken token = _uploadCancel = CancelToken();
+    // Reuse key on retry after interrupt so the server can dedupe.
+    _lastIdempotencyKey ??= IdempotencyKey.create();
     final result = await _repo.intake(
       widget.patientId,
       media: media,
-      idempotencyKey: IdempotencyKey.create(),
+      idempotencyKey: _lastIdempotencyKey!,
+      cancelToken: token,
     );
     if (!mounted) return;
     switch (result) {
       case Err(:final failure):
+        final ApiError err = failure.apiError;
         setState(() {
           _busy = false;
-          _error = failure.apiError.userMessage;
+          if (err.kind == ApiErrorKind.cancelled) {
+            _error =
+                'Upload cancelled. Nothing was saved — tap Start or Take photo to retry.';
+          } else {
+            _error = '${err.userMessage} Nothing was lost from the chart.';
+          }
         });
       case Ok(:final value):
         try {
           markCensusDirty();
         } catch (_) {}
+        _lastIdempotencyKey = null;
         setState(() {
           _busy = false;
           _done = value;
@@ -296,23 +322,73 @@ class _PatientIntakeScreenState extends State<PatientIntakeScreen> {
                   ),
                 ],
               )
+            else if (_busy)
+              Row(
+                children: <Widget>[
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Uploading… You can cancel without losing chart data.',
+                      style: AppTypography.regular(
+                        fontSize: 13,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _cancelUpload,
+                    child: const Text('Cancel upload'),
+                  ),
+                ],
+              )
             else
               AppButton(
                 label: 'Start recording',
-                loading: _busy,
-                onPressed: _busy ? null : _startDictate,
+                loading: false,
+                onPressed: _startDictate,
               ),
           ] else ...<Widget>[
-            AppButton(
-              label: 'Take photo',
-              loading: _busy,
-              onPressed: _busy ? null : () => _pickPhoto(ImageSource.camera),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: _busy ? null : () => _pickPhoto(ImageSource.gallery),
-              child: const Text('Choose from gallery'),
-            ),
+            if (_busy)
+              Row(
+                children: <Widget>[
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Uploading photo… Cancel keeps the chart unchanged.',
+                      style: AppTypography.regular(
+                        fontSize: 13,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _cancelUpload,
+                    child: const Text('Cancel upload'),
+                  ),
+                ],
+              )
+            else ...<Widget>[
+              AppButton(
+                label: 'Take photo',
+                loading: false,
+                onPressed: () => _pickPhoto(ImageSource.camera),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => _pickPhoto(ImageSource.gallery),
+                child: const Text('Choose from gallery'),
+              ),
+            ],
           ],
           if (_error != null) ...<Widget>[
             const SizedBox(height: 16),

@@ -186,6 +186,18 @@ void main() {
       expect(error.sections, <String>['plan', 'exam']);
     });
 
+    test('keeps request_id for support reference', () {
+      final ApiError error = ApiError.fromResponse(500, <String, Object>{
+        'error': <String, Object>{
+          'code': 'internal',
+          'message': 'hidden',
+          'request_id': 'support-ref-99',
+        },
+      });
+      expect(error.requestId, 'support-ref-99');
+      expect(error.referenceLine, 'Reference: support-ref-99');
+    });
+
     test('retry applies to generation and connection failures only', () {
       expect(
         ApiError.fromResponse(502, _error('ai_unavailable')).isRetryable,

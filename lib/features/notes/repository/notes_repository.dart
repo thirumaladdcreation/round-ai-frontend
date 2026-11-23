@@ -60,4 +60,25 @@ abstract class NotesRepository {
 
   /// Clean text of a reviewed note.
   Future<Result<String>> export(String artifactId);
+
+  /// Clinician edit history for a note artifact.
+  Future<Result<List<NoteVersion>>> versions(String artifactId);
+
+  /// Restore a prior version (creates a new version snapshot).
+  Future<Result<AiEnvelope>> restoreVersion(
+    String artifactId,
+    int version,
+  );
+}
+
+class NoteVersion {
+  const NoteVersion({
+    required this.version,
+    required this.createdAt,
+    this.editedBy,
+  });
+
+  final int version;
+  final String createdAt;
+  final String? editedBy;
 }

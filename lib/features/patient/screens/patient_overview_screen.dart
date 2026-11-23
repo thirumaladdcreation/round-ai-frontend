@@ -4,20 +4,19 @@ import 'package:go_router/go_router.dart';
 import 'package:round_ai/core/config/app_environment.dart';
 import 'package:round_ai/core/config/app_features.dart';
 import 'package:round_ai/core/di/injection_container.dart';
-import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/router/app_routes.dart';
-import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
+import 'package:round_ai/features/ai/models/ai_envelope.dart';
 import 'package:round_ai/features/ai/repository/ai_repository.dart';
 import 'package:round_ai/features/ai/widgets/ask_sheet.dart';
+import 'package:round_ai/features/ai/widgets/source_drawer.dart';
 import 'package:round_ai/features/ai/widgets/summary_card.dart';
 import 'package:round_ai/features/authentication/repository/profile_repository.dart';
 import 'package:round_ai/features/census/data/demo_patients.dart';
 import 'package:round_ai/features/census/models/patient_summary.dart';
 import 'package:round_ai/features/patient/bloc/patient_overview_bloc.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
-import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/models/problem.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 import 'package:round_ai/features/problems/repository/problems_repository.dart';
@@ -25,9 +24,9 @@ import 'package:round_ai/features/problems/widgets/problems_card.dart';
 import 'package:round_ai/features/chat/utils/open_patient_thread.dart';
 import 'package:round_ai/features/patient/widgets/ask_patient_sheet.dart';
 import 'package:round_ai/features/patient/widgets/chart_data_card.dart';
+import 'package:round_ai/features/patient/widgets/inline_plan_card.dart';
 import 'package:round_ai/features/patient/widgets/patient_chrome.dart';
 import 'package:round_ai/shared/widgets/ai_state.dart';
-import 'package:round_ai/shared/widgets/app_button.dart';
 import 'package:round_ai/shared/widgets/retry_view.dart';
 import 'package:round_ai/shared/widgets/skeleton.dart';
 
@@ -149,19 +148,23 @@ class _PatientOverviewViewState extends State<PatientOverviewView> {
                             ),
                             if (patient != null)
                               Text(
-                                patient.room.trim().isEmpty
-                                    ? patient.metaLine
-                                    : 'Rm ${patient.room} · ${patient.metaLine}',
+                                // metaLine already includes Room — do not prefix Rm again.
+                                patient.metaLine,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTypography.regular(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   color: colors.textSecondary,
                                 ),
                               ),
                           ],
                         ),
                       ),
+                      if (patient != null && detail != null)
+                        _MoreMenu(
+                          patient: patient,
+                          problems: detail.problems,
+                        ),
                     ],
                   ),
                 ),
@@ -192,32 +195,62 @@ class _PatientOverviewViewState extends State<PatientOverviewView> {
                   },
                 ),
                 if (patient != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () =>
-                                showAddUpdateSheet(context, patient.id),
-                            icon: const Icon(Icons.add_rounded, size: 18),
-                            label: const Text('Add update'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: AppButton(
-                            label: AppFeatures.notes
-                                ? 'Create note'
-                                : 'Open plan',
-                            onPressed: () => context.push(
-                              AppFeatures.notes
-                                  ? AppRoutes.notePath(patient.id)
-                                  : AppRoutes.patientPlanPath(patient.id),
+                  Material(
+                    color: colors.surface,
+                    elevation: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                      decoration: BoxDecoration(
+                        border: Border(top: BorderSide(color: colors.border)),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF0A8F9C),
+                                side: const BorderSide(
+                                  color: Color(0xFF0A8F9C),
+                                  width: 1.4,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              onPressed: () =>
+                                  showAddUpdateSheet(context, patient.id),
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              label: const Text('Add update'),
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF0A8F9C),
+                                foregroundColor: colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              onPressed: () => context.push(
+                                AppFeatures.notes
+                                    ? AppRoutes.notePath(patient.id)
+                                    : AppRoutes.patientPlanPath(patient.id),
+                              ),
+                              child: Text(
+                                AppFeatures.notes ? 'Create note' : 'Open plan',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
               ],
@@ -238,6 +271,8 @@ class _Content extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final PatientSummary patient = detail.patient;
+    // Priority: one-liner → overnight changes → vitals → problems → A&P.
+    // Create note / Add update stay pinned in the footer (no scroll required).
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -249,14 +284,6 @@ class _Content extends StatelessWidget {
           const SizedBox(height: 12),
           _InsightCard(title: 'Key vitals & labs', items: detail.trends),
         ],
-        const SizedBox(height: 12),
-        ChartDataCard(
-          patientId: patient.id,
-          unreviewedFacts: patient.unreviewedFacts,
-          onChanged: () => context.read<PatientOverviewBloc>().add(
-            const PatientOverviewRequested(),
-          ),
-        ),
         if (detail.demoSummary == null) ...<Widget>[
           const SizedBox(height: 12),
           ProblemsCard(
@@ -272,12 +299,22 @@ class _Content extends StatelessWidget {
           _ProblemsCard(problems: detail.problems),
         ],
         const SizedBox(height: 12),
-        _PlanCard(
+        InlinePlanCard(
           patientId: patient.id,
           lines: detail.planToday,
           structured: detail.planStructured,
           problems: detail.problems,
         ),
+        if (patient.unreviewedFacts > 0) ...<Widget>[
+          const SizedBox(height: 12),
+          ChartDataCard(
+            patientId: patient.id,
+            unreviewedFacts: patient.unreviewedFacts,
+            onChanged: () => context.read<PatientOverviewBloc>().add(
+              const PatientOverviewRequested(),
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         if (AppFeatures.summary && detail.demoSummary == null)
           SummaryCard(
@@ -297,18 +334,10 @@ class _Content extends StatelessWidget {
             items: detail.conflicts,
           ),
         ],
-        const SizedBox(height: 12),
-        _MissingCard(items: detail.missingInformation),
-        const SizedBox(height: 16),
-        Text(
-          'More tools',
-          style: AppTypography.semiBold(
-            fontSize: 13,
-            color: AppColors.of(context).textMuted,
-          ),
-        ),
-        const SizedBox(height: 8),
-        _Actions(patient: patient, problems: detail.problems),
+        if (detail.missingInformation.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 12),
+          _MissingCard(items: detail.missingInformation),
+        ],
       ],
     );
   }
@@ -323,41 +352,116 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppColors colors = AppColors.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: colors.primary.withValues(alpha: 0.12),
-          child: Text(
-            patient.initials,
-            style: AppTypography.bold(fontSize: 16, color: colors.primary),
+    final (Color bg, Color fg, String label, IconData icon) =
+        switch (patient.summaryState) {
+          SummaryState.notGenerated => (
+            colors.criticalBg,
+            colors.critical,
+            'Not started',
+            Icons.error_outline_rounded,
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                patient.displayName,
-                style: AppTypography.bold(
-                  fontSize: 22,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                patient.metaLine,
-                style: AppTypography.regular(
-                  color: colors.textSecondary,
-                  fontSize: 13,
-                ),
-              ),
-            ],
+          SummaryState.draftReady => (
+            const Color(0xFFE8F3FF),
+            colors.primary,
+            'Draft',
+            Icons.timelapse_rounded,
           ),
-        ),
-      ],
+          SummaryState.reviewed => (
+            colors.successSoft,
+            colors.success,
+            'Reviewed',
+            Icons.check_circle_outline,
+          ),
+          SummaryState.outdated => (
+            colors.chipIdle,
+            colors.textSecondary,
+            'Outdated',
+            Icons.schedule_rounded,
+          ),
+        };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: colors.navy.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: <Widget>[
+          CircleAvatar(
+            radius: 26,
+            backgroundColor: const Color(0xFFD6F3F6),
+            child: Text(
+              patient.initials,
+              style: AppTypography.bold(
+                fontSize: 15,
+                color: const Color(0xFF0A8F9C),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  patient.displayName,
+                  style: AppTypography.bold(
+                    fontSize: 18,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  patient.metaLine,
+                  style: AppTypography.regular(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                if (patient.oneLiner.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    patient.oneLiner.trim(),
+                    style: AppTypography.medium(
+                      fontSize: 14,
+                      height: 1.35,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(icon, size: 13, color: fg),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: AppTypography.semiBold(color: fg, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -507,184 +611,6 @@ class _AiSummaryCardState extends State<_AiSummaryCard> {
   }
 }
 
-class _PlanCard extends StatefulWidget {
-  const _PlanCard({
-    required this.patientId,
-    required this.lines,
-    this.structured,
-    this.problems = const <Problem>[],
-  });
-
-  final String patientId;
-  final List<String> lines;
-  final PlanStructured? structured;
-  final List<Problem> problems;
-
-  @override
-  State<_PlanCard> createState() => _PlanCardState();
-}
-
-class _PlanCardState extends State<_PlanCard> {
-  late bool _includeIcd;
-  bool _savingIcd = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _includeIcd = widget.structured?.includeIcd ?? false;
-  }
-
-  @override
-  void didUpdateWidget(covariant _PlanCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.structured?.includeIcd != widget.structured?.includeIcd &&
-        !_savingIcd) {
-      _includeIcd = widget.structured?.includeIcd ?? false;
-    }
-  }
-
-  String? _codeFor(String label) {
-    for (final Problem p in widget.problems) {
-      final String? code = p.codeSuggestion?.code;
-      if (code == null || code.isEmpty) continue;
-      if (p.label.toLowerCase() == label.toLowerCase() ||
-          label.toLowerCase().contains(p.label.toLowerCase())) {
-        return code.trim();
-      }
-    }
-    return null;
-  }
-
-  List<String> get _previewLines {
-    final PlanStructured? structured = widget.structured;
-    if (structured != null && structured.items.isNotEmpty) {
-      return structured.toDisplayLines(withIcd: _includeIcd);
-    }
-    if (!_includeIcd) return widget.lines;
-    return <String>[
-      for (final String line in widget.lines)
-        () {
-          final String? code = _codeFor(line);
-          if (code == null || line.contains(code)) return line;
-          return '$line ($code)';
-        }(),
-    ];
-  }
-
-  Future<void> _onIcdChanged(bool value) async {
-    setState(() {
-      _includeIcd = value;
-      _savingIcd = true;
-    });
-    final PlanStructured base = widget.structured ??
-        PlanStructured(
-          includeIcd: value,
-          items: <PlanItem>[
-            for (final String line in widget.lines)
-              if (line.trim().isNotEmpty)
-                PlanItem(label: line.trim()),
-          ],
-        );
-    // Prefer flipping include_icd only; keep codes on items so toggling back on
-    // does not invent new codes and still uses clinician-accepted ones.
-    final PlanStructured next = base.copyWith(
-      includeIcd: value,
-      items: <PlanItem>[
-        for (final PlanItem item in base.items)
-          item.copyWith(
-            code: item.code?.isNotEmpty == true
-                ? item.code
-                : _codeFor(item.label),
-          ),
-      ],
-    );
-    try {
-      final Result<void> result = await InjectionContainer
-          .instance
-          .patientRepository
-          .saveStructuredPlan(widget.patientId, next);
-      if (!mounted) return;
-      if (result case Err<void>()) {
-        setState(() {
-          _includeIcd = !value;
-          _savingIcd = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save ICD preference.')),
-        );
-        return;
-      }
-      markCensusDirty();
-      context.read<PatientOverviewBloc>().add(const PatientOverviewRequested());
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _includeIcd = !value;
-        _savingIcd = false;
-      });
-    } finally {
-      if (mounted) setState(() => _savingIcd = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = AppColors.of(context);
-    final bool hasCodes = widget.problems.any(
-      (Problem p) =>
-          p.codeSuggestion?.code != null &&
-          p.codeSuggestion!.code.trim().isNotEmpty,
-    );
-    final List<String> lines = _previewLines;
-    return _CardShell(
-      title: 'Assessment and Plan',
-      trailing: TextButton(
-        onPressed: () => context.push(AppRoutes.patientPlanPath(widget.patientId)),
-        child: Text(
-          'Edit',
-          style: AppTypography.semiBold(fontSize: 12, color: colors.primary),
-        ),
-      ),
-      children: <Widget>[
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          title: Text(
-            'Include ICD-10 codes',
-            style: AppTypography.regular(fontSize: 13, color: colors.textPrimary),
-          ),
-          subtitle: Text(
-            hasCodes
-                ? 'Codes appear beside matching diagnoses. Preference is saved with the plan.'
-                : 'No accepted codes yet — confirm problems, then Suggest codes under Problems.',
-            style: AppTypography.regular(fontSize: 11, color: colors.textMuted),
-          ),
-          value: _includeIcd,
-          onChanged: _savingIcd ? null : _onIcdChanged,
-        ),
-        if (lines.isEmpty)
-          Text(
-            "Edit to enter today's Assessment and Plan by problem. "
-            'A plan from dictation can prefill this after you review the note — no need to type it twice.',
-            style: AppTypography.regular(
-              fontSize: 13,
-              color: colors.textSecondary,
-            ),
-          )
-        else
-          for (final String line in lines)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                '• $line',
-                style: AppTypography.regular(height: 1.35),
-              ),
-            ),
-      ],
-    );
-  }
-}
-
 class _ProblemsCard extends StatelessWidget {
   const _ProblemsCard({required this.problems});
 
@@ -830,10 +756,46 @@ class _InsightCard extends StatelessWidget {
       children: <Widget>[
         for (final InsightItem item in items)
           Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text(
-              '• ${_line(item)}',
-              style: AppTypography.regular(height: 1.35),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '• ${_line(item)}',
+                  style: AppTypography.regular(height: 1.35),
+                ),
+                if (item.factIds.isNotEmpty)
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.only(left: 12, top: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () {
+                      try {
+                        showSourceDrawer(
+                          context,
+                          claim: Claim(
+                            text: _line(item),
+                            label: ClaimLabel.fromChart,
+                            factIds: item.factIds,
+                          ),
+                          repository:
+                              InjectionContainer.instance.aiRepository,
+                        );
+                      } catch (_) {}
+                    },
+                    child: Text(
+                      item.factIds.length == 1
+                          ? 'Review source'
+                          : 'Review ${item.factIds.length} sources',
+                      style: AppTypography.semiBold(
+                        fontSize: 12,
+                        color: const Color(0xFF0A8F9C),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
       ],
@@ -915,16 +877,15 @@ class _CardShell extends StatelessWidget {
   }
 }
 
-class _Actions extends StatelessWidget {
-  const _Actions({required this.patient, required this.problems});
+/// Secondary patient tools — Evidence, Teach, Presentation, Chat, Ask, Tasks.
+class _MoreMenu extends StatelessWidget {
+  const _MoreMenu({required this.patient, required this.problems});
 
   final PatientSummary patient;
   final List<Problem> problems;
 
   String get patientId => patient.id;
 
-  /// Topics the user can pick for a question: only problems a clinician
-  /// confirmed or marked as differential. A suggestion is not offered.
   List<String> get _topics => <String>[
     for (final Problem p in problems)
       if (p.state == ProblemState.confirmed ||
@@ -956,110 +917,65 @@ class _Actions extends StatelessWidget {
     return 'Patient thread';
   }
 
-  Future<void> _openTeamThread(BuildContext context) {
-    return openPatientTeamThread(
-      context,
-      patientId: patientId,
-      patientLabel: _teamThreadLabel,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final List<Widget> tiles = <Widget>[
+    final List<PopupMenuEntry<String>> items = <PopupMenuEntry<String>>[
+      const PopupMenuItem<String>(value: 'tasks', child: Text('Tasks')),
       if (AppFeatures.presentation)
-        _ActionTile(
-          icon: Icons.campaign_outlined,
-          label: 'Prepare\nPresentation',
-          onTap: () => context.push(AppRoutes.presentationPath(patientId)),
+        const PopupMenuItem<String>(
+          value: 'presentation',
+          child: Text('Prepare presentation'),
         ),
       if (AppFeatures.evidence)
-        _ActionTile(
-          icon: Icons.menu_book_outlined,
-          label: 'Explore\nEvidence',
-          onTap: () => context.push(AppRoutes.evidencePath(patientId)),
+        const PopupMenuItem<String>(
+          value: 'evidence',
+          child: Text('Explore evidence'),
         ),
       if (AppFeatures.teach)
-        _ActionTile(
-          icon: Icons.school_outlined,
-          label: 'Teach Me',
-          onTap: () => context.push(AppRoutes.teachPath(patientId)),
-        ),
+        const PopupMenuItem<String>(value: 'teach', child: Text('Teach me')),
       if (AppFeatures.chat)
-        _ActionTile(
-          icon: Icons.forum_outlined,
-          label: 'Open team\nthread',
-          onTap: () => _openTeamThread(context),
+        const PopupMenuItem<String>(
+          value: 'chat',
+          child: Text('Open team thread'),
+        ),
+      if (AppFeatures.ask)
+        const PopupMenuItem<String>(
+          value: 'ask',
+          child: Text('Ask about this patient'),
+        ),
+      if (AppFeatures.signOut)
+        const PopupMenuItem<String>(
+          value: 'signout',
+          child: Text('Sign-out checklist'),
         ),
     ];
-    return Column(
-      children: <Widget>[
-        if (tiles.isNotEmpty)
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.7,
-            children: tiles,
-          ),
-        if (AppFeatures.ask) ...<Widget>[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _ask(context),
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-              label: const Text('Ask about this patient'),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = AppColors.of(context);
-    return Material(
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(icon, color: colors.primary),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: AppTypography.semiBold(fontSize: 13, height: 1.2),
-              ),
-            ],
-          ),
-        ),
-      ),
+    if (items.isEmpty) return const SizedBox.shrink();
+    return PopupMenuButton<String>(
+      tooltip: 'More',
+      icon: const Icon(Icons.more_horiz_rounded),
+      onSelected: (String value) {
+        switch (value) {
+          case 'tasks':
+            context.push(AppRoutes.patientTasksPath(patientId));
+          case 'presentation':
+            context.push(AppRoutes.presentationPath(patientId));
+          case 'evidence':
+            context.push(AppRoutes.evidencePath(patientId));
+          case 'teach':
+            context.push(AppRoutes.teachPath(patientId));
+          case 'chat':
+            openPatientTeamThread(
+              context,
+              patientId: patientId,
+              patientLabel: _teamThreadLabel,
+            );
+          case 'ask':
+            _ask(context);
+          case 'signout':
+            context.push(AppRoutes.signOutPath(patientId));
+        }
+      },
+      itemBuilder: (BuildContext context) => items,
     );
   }
 }

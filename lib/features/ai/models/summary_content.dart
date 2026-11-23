@@ -57,9 +57,8 @@ class SummarySection extends Equatable {
   }
 
   static String _humanize(String key) {
-    final String words = key.replaceAll('_', ' ').trim();
-    if (words.isEmpty) return 'Section';
-    return words[0].toUpperCase() + words.substring(1);
+    final String out = humanizeMissingToken(key);
+    return out.isEmpty ? 'Section' : out;
   }
 
   final String key;

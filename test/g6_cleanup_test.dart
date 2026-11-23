@@ -24,11 +24,13 @@ void main() {
       expect(AppFeatures.considerations, isFalse);
     });
 
-    test('shell includes learn and scribe; chat is drawer-only', () {
+    test('shell includes Patients/Tasks/Learn/Chat; Scribe is secondary', () {
       AppFeatures.forceAll = true;
+      expect(ShellTabs.visible.contains(ShellTab.census), isTrue);
+      expect(ShellTabs.visible.contains(ShellTab.tasks), isTrue);
       expect(ShellTabs.visible.contains(ShellTab.learn), isTrue);
-      expect(ShellTabs.visible.contains(ShellTab.scribe), isTrue);
-      expect(ShellTabs.visible.contains(ShellTab.chat), isFalse);
+      expect(ShellTabs.visible.contains(ShellTab.chat), isTrue);
+      expect(ShellTabs.visible.contains(ShellTab.scribe), isFalse);
     });
 
     test('routes and endpoints expose chat channels', () {

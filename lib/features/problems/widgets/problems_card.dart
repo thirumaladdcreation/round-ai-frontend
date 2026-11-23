@@ -181,10 +181,13 @@ class _ProblemsView extends StatelessWidget {
                   ],
                 )
               else ...<Widget>[
-                OutlinedButton.icon(
+                TextButton.icon(
                   onPressed: aiOff ? null : cubit.suggest,
                   icon: const Icon(Icons.auto_awesome, size: 18),
-                  label: const Text('Suggest problems'),
+                  label: Text(
+                    'Suggest problems',
+                    style: AppTypography.medium(fontSize: 14),
+                  ),
                 ),
                 if (aiOff)
                   Padding(
@@ -192,7 +195,7 @@ class _ProblemsView extends StatelessWidget {
                     child: Text(
                       problemsAiOffMessage,
                       style: AppTypography.regular(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: colors.critical,
                       ),
                     ),
@@ -275,8 +278,8 @@ class _ProblemRow extends StatelessWidget {
               Text(
                 problem.state.label,
                 style: AppTypography.medium(
-                  fontSize: 11,
-                  color: suggested ? colors.aiAccent : colors.textMuted,
+                  fontSize: 13,
+                  color: suggested ? colors.aiAccent : colors.textSecondary,
                 ),
               ),
             ],
@@ -296,13 +299,16 @@ class _ProblemRow extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${code.code} · ${code.description}',
-              style: AppTypography.semiBold(fontSize: 12),
+              style: AppTypography.semiBold(
+                fontSize: 14,
+                color: colors.textPrimary,
+              ),
             ),
             Text(
               code.label,
-              style: AppTypography.medium(
-                fontSize: 11,
-                color: colors.aiAccent,
+              style: AppTypography.regular(
+                fontSize: 13,
+                color: colors.textSecondary,
               ),
             ),
           ],
@@ -367,16 +373,25 @@ class _ProblemRow extends StatelessWidget {
                       ),
                     ],
                   ),
-          if (coding) ...<Widget>[
-            const SizedBox(height: 6),
-            OutlinedButton.icon(
-              onPressed: aiOff || locked
-                  ? null
-                  : () => _suggestCodes(context),
-              icon: const Icon(Icons.medical_information_outlined, size: 18),
-              label: Text(code == null ? 'Suggest codes' : 'Suggest codes again'),
+          if (coding)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: aiOff || locked
+                    ? null
+                    : () => _suggestCodes(context),
+                icon: const Icon(Icons.medical_information_outlined, size: 18),
+                label: Text(
+                  code == null ? 'Suggest codes' : 'Suggest codes again',
+                  style: AppTypography.medium(fontSize: 14),
+                ),
+              ),
             ),
-          ],
         ],
       ),
     );

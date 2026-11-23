@@ -242,7 +242,9 @@ class RoundPatientCard extends Equatable {
     final Map<String, dynamic> plan = Json.map(json['plan_today']);
     return RoundPatientCard(
       patientId: Json.string(json['patient_id']),
-      displayName: Json.string(json['display_name']),
+      displayName: Json.string(json['display_name'])
+          .replaceFirst(RegExp(r'\s*\(fictional\)\s*$', caseSensitive: false), '')
+          .trim(),
       room: Json.string(json['room']),
       ageBand: Json.string(json['age_band']),
       sex: Json.string(json['sex']),

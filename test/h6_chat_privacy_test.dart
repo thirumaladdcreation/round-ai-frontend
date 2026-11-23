@@ -25,11 +25,11 @@ void main() {
   tearDown(() => AppFeatures.forceAll = null);
 
   group('feature surface', () {
-    test('chat is live in routes (drawer; not bottom bar)', () {
+    test('chat is live on the bottom bar; scribe is secondary', () {
       AppFeatures.forceAll = null;
       expect(AppFeatures.chat, isTrue);
-      expect(ShellTabs.visible.contains(ShellTab.chat), isFalse);
-      expect(ShellTabs.visible.contains(ShellTab.scribe), isTrue);
+      expect(ShellTabs.visible.contains(ShellTab.chat), isTrue);
+      expect(ShellTabs.visible.contains(ShellTab.scribe), isFalse);
       expect(AppRoutes.chat, '/chat');
       expect(AppRoutes.scribe, '/scribe');
       expect(AppRoutes.chatSummaryPath('c1'), '/chat/c1/summary');

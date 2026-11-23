@@ -86,18 +86,13 @@ class HomeRepositoryImpl implements HomeRepository {
   }
 
   HomePatientPreview _preview(PatientSummary p) {
-    final List<String> changeBits = <String>[
-      if (p.unreviewedFacts > 0)
-        '${p.unreviewedFacts} pending ${p.unreviewedFacts == 1 ? 'fact' : 'facts'}',
-      if (p.openTasks > 0)
-        '${p.openTasks} open ${p.openTasks == 1 ? 'task' : 'tasks'}',
-    ];
     final String reason = p.oneLiner.trim().isNotEmpty
         ? p.oneLiner.trim()
         : (p.metaLine.isEmpty ? p.displayName : p.metaLine);
+    // Meaningful chart changes only — note status lives on its own chip.
     final String latest = p.keyChanges.isNotEmpty
         ? p.keyChanges.take(2).join(' · ')
-        : (changeBits.isEmpty ? 'Ready for rounds' : changeBits.join(' · '));
+        : '';
     return HomePatientPreview(
       id: p.id,
       name: p.displayName,

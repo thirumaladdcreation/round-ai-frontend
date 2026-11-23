@@ -7,6 +7,7 @@ import 'package:round_ai/core/config/app_features.dart';
 import 'package:round_ai/core/di/injection_container.dart';
 import 'package:round_ai/core/router/app_routes.dart';
 import 'package:round_ai/features/authentication/repository/profile_repository.dart';
+import 'package:round_ai/features/authentication/widgets/sign_in_lockup.dart';
 
 /// Left menu for profile, team, appearance, and sign out.
 class AppMenuDrawer extends StatelessWidget {
@@ -29,6 +30,13 @@ class AppMenuDrawer extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: <Widget>[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SignInWordmark(width: 140),
+              ),
+            ),
             AppMenuHeader(
               name: di.profileRepository.nameOr(storage.clinicianName),
               teamName: team?.name ?? 'No team selected',
@@ -47,36 +55,26 @@ class AppMenuDrawer extends StatelessWidget {
               ),
               onTap: () => _go(context, AppRoutes.profile, replace: true),
             ),
-            if (AppFeatures.chat)
+            ListTile(
+              leading: Icon(Icons.home_outlined, color: palette.textPrimary),
+              title: Text(
+                'Today overview',
+                style: AppTypography.bodyLarge(color: palette.textPrimary),
+              ),
+              onTap: () => _go(context, AppRoutes.today, replace: true),
+            ),
+            if (AppFeatures.rounds)
               ListTile(
                 leading: Icon(
-                  Icons.forum_outlined,
+                  Icons.medical_services_outlined,
                   color: palette.textPrimary,
                 ),
                 title: Text(
-                  'Chat',
+                  'Rounds',
                   style: AppTypography.bodyLarge(color: palette.textPrimary),
                 ),
-                subtitle: Text(
-                  'Team channels — like Slack',
-                  style: AppTypography.regular(
-                    fontSize: 12,
-                    color: palette.textSecondary,
-                  ),
-                ),
-                onTap: () => _go(context, AppRoutes.chat, replace: true),
+                onTap: () => _go(context, AppRoutes.rounds, replace: true),
               ),
-            ListTile(
-              leading: Icon(
-                Icons.fact_check_outlined,
-                color: palette.textPrimary,
-              ),
-              title: Text(
-                'Team tasks',
-                style: AppTypography.bodyLarge(color: palette.textPrimary),
-              ),
-              onTap: () => _go(context, AppRoutes.tasks, replace: true),
-            ),
             ListTile(
               leading: Icon(Icons.groups_outlined, color: palette.textPrimary),
               title: Text(

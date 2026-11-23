@@ -85,9 +85,9 @@ class SignInLogoMark extends StatelessWidget {
 }
 
 class SignInWordmark extends StatelessWidget {
-  const SignInWordmark({super.key});
+  const SignInWordmark({this.width = 228, super.key});
 
-  static const double width = 228;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
@@ -118,12 +118,12 @@ class SignInWordmark extends StatelessWidget {
                     ),
                     child: image,
                   ),
-                  const ClipRect(
-                    clipper: SignInBadgeClipper(),
+                  ClipRect(
+                    clipper: const SignInBadgeClipper(),
                     child: Image(
-                      image: AssetImage(AppAssets.logoWordmark),
+                      image: const AssetImage(AppAssets.logoWordmark),
                       width: width,
-                      height: width * (724 / 2172),
+                      height: height,
                       fit: BoxFit.contain,
                       filterQuality: FilterQuality.high,
                     ),

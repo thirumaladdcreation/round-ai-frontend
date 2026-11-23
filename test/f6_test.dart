@@ -68,14 +68,13 @@ void main() {
   tearDown(() => AppFeatures.forceAll = null);
 
   group('shell tabs', () {
-    test('the real build shows Home, Census, Scribe, Rounds and Learn', () {
+    test('the real build shows Patients, Tasks, Learn and Chat', () {
       AppFeatures.forceAll = null;
       expect(ShellTabs.visible, <ShellTab>[
-        ShellTab.today,
         ShellTab.census,
-        ShellTab.scribe,
-        ShellTab.rounds,
+        ShellTab.tasks,
         ShellTab.learn,
+        ShellTab.chat,
       ]);
       expect(AppFeatures.rounds, isTrue);
       expect(AppFeatures.learning, isTrue);
@@ -86,11 +85,10 @@ void main() {
     test('forceAll keeps the same product bottom bar', () {
       AppFeatures.forceAll = true;
       expect(ShellTabs.visible, <ShellTab>[
-        ShellTab.today,
         ShellTab.census,
-        ShellTab.scribe,
-        ShellTab.rounds,
+        ShellTab.tasks,
         ShellTab.learn,
+        ShellTab.chat,
       ]);
       expect(AppFeatures.rounds, isTrue);
       expect(AppFeatures.learning, isTrue);
@@ -108,13 +106,13 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Census'), findsOneWidget);
-      expect(find.text('Scribe'), findsOneWidget);
-      expect(find.text('Rounds'), findsOneWidget);
+      expect(find.text('Patients'), findsOneWidget);
+      expect(find.text('Tasks'), findsOneWidget);
       expect(find.text('Learn'), findsOneWidget);
-      expect(find.text('Chat'), findsNothing);
-      expect(find.text('Tasks'), findsNothing);
+      expect(find.text('Chat'), findsOneWidget);
+      expect(find.text('Home'), findsNothing);
+      expect(find.text('Scribe'), findsNothing);
+      expect(find.text('Rounds'), findsNothing);
 
       AppFeatures.forceAll = true;
       await tester.pumpWidget(
@@ -124,9 +122,10 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Scribe'), findsOneWidget);
-      expect(find.text('Rounds'), findsOneWidget);
+      expect(find.text('Patients'), findsOneWidget);
+      expect(find.text('Tasks'), findsOneWidget);
       expect(find.text('Learn'), findsOneWidget);
+      expect(find.text('Chat'), findsOneWidget);
     });
 
     test('a link to a hidden tab goes to the census', () {
@@ -149,11 +148,11 @@ void main() {
           home: Scaffold(body: HomeRoundsCard(snapshot: _snap)),
         ),
       );
-      expect(find.text('Prepare for Rounds'), findsOneWidget);
-      expect(find.text('View Patient Census'), findsOneWidget);
+      expect(find.text('Prepare for rounds'), findsOneWidget);
+      expect(find.text('Open census'), findsOneWidget);
     });
 
-    testWidgets('with rounds on it offers Prepare for Rounds', (
+    testWidgets('with rounds on it offers Prepare for rounds', (
       WidgetTester tester,
     ) async {
       AppFeatures.forceAll = true;
@@ -162,7 +161,7 @@ void main() {
           home: Scaffold(body: HomeRoundsCard(snapshot: _snap)),
         ),
       );
-      expect(find.text('Prepare for Rounds'), findsOneWidget);
+      expect(find.text('Prepare for rounds'), findsOneWidget);
     });
   });
 

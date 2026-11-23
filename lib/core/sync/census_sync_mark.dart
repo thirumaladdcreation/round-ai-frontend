@@ -7,3 +7,10 @@ void markCensusDirty() {
     InjectionContainer.instance.censusSync.markDirty();
   } catch (_) {}
 }
+
+/// Applies mutation `patient_status` into [PatientStatusStore] when present.
+void applyPatientStatusFromBody(Object? body) {
+  try {
+    InjectionContainer.instance.patientStatusStore.applyFromResponse(body);
+  } catch (_) {}
+}

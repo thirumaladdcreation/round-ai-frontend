@@ -90,6 +90,8 @@ class NoteDraftState extends Equatable {
     if (envelope == null || isReviewed) return const <String>[];
     return <String>[
       if (outdated) noteOutdatedMessage,
+      if (envelope!.isPartial)
+        'Partial result. Edit flagged sections so nothing unsupported remains.',
       for (final NoteSection s in sections)
         if (s.hasFlags) '${s.title} has a flag to resolve.',
       for (final NoteSection s in sections)
@@ -339,6 +341,7 @@ class NoteCubit extends Cubit<NoteDraftState> {
     required String transcript,
     List<String>? sourceIds,
     List<Map<String, String>>? clarifications,
+    String? noteDate,
   }) async {
     final String? type = state.selectedType;
     if (type == null || state.generating) return;
@@ -358,7 +361,7 @@ class NoteCubit extends Cubit<NoteDraftState> {
       return;
     }
     final String signature =
-        'dictation|$type|$trimmed|${jsonEncode(sourceIds ?? const <String>[])}|${jsonEncode(clarifications ?? const <Map<String, String>>[])}';
+        'dictation|$type|$trimmed|${jsonEncode(sourceIds ?? const <String>[])}|${jsonEncode(clarifications ?? const <Map<String, String>>[])}|${noteDate ?? ''}';
     if (signature != _lastSignature) _generateKey = null;
     _lastSignature = signature;
     _generateKey ??= IdempotencyKey.create();
@@ -376,6 +379,7 @@ class NoteCubit extends Cubit<NoteDraftState> {
       noteType: type,
       transcript: trimmed,
       sourceIds: sourceIds,
+      noteDate: noteDate,
       clarifications: clarifications,
       idempotencyKey: _generateKey!,
       cancelToken: token,
@@ -411,10 +415,15 @@ class NoteCubit extends Cubit<NoteDraftState> {
     );
   }
 
+  String? _pendingSaveKey;
+  String? _pendingSaveText;
+
   /// Saves text the clinician wrote or applied for one section.
   Future<void> saveSection(String key, String text) async {
     final AiEnvelope? envelope = state.envelope;
     if (envelope == null || state.busy) return;
+    _pendingSaveKey = key;
+    _pendingSaveText = text;
     emit(
       state.copyWith(
         savingKey: key,
@@ -433,8 +442,18 @@ class NoteCubit extends Cubit<NoteDraftState> {
       case Err<AiEnvelope>(:final failure):
         emit(state.copyWith(clearSaving: true, saveError: failure.apiError));
       case Ok<AiEnvelope>(:final value):
+        _pendingSaveKey = null;
+        _pendingSaveText = null;
         emit(_withDraft(value));
     }
+  }
+
+  /// Retries the last failed section save without losing the edited text.
+  Future<void> retrySave() async {
+    final String? key = _pendingSaveKey;
+    final String? text = _pendingSaveText;
+    if (key == null || text == null) return;
+    await saveSection(key, text);
   }
 
   /// Asks for new text for a section. It is only a proposal.
@@ -539,6 +558,36 @@ class NoteCubit extends Cubit<NoteDraftState> {
       case Ok<String>(:final value):
         emit(state.copyWith(exporting: false));
         return value.isEmpty ? null : value;
+    }
+  }
+
+  Future<List<NoteVersion>> loadVersions() async {
+    final AiEnvelope? envelope = state.envelope;
+    if (envelope == null) return const <NoteVersion>[];
+    final Result<List<NoteVersion>> result = await _notes.versions(
+      envelope.artifactId,
+    );
+    return switch (result) {
+      Ok<List<NoteVersion>>(:final value) => value,
+      Err<List<NoteVersion>>() => const <NoteVersion>[],
+    };
+  }
+
+  Future<void> restoreVersion(int version) async {
+    final AiEnvelope? envelope = state.envelope;
+    if (envelope == null || state.busy) return;
+    emit(state.copyWith(generating: true, clearError: true));
+    final Result<AiEnvelope> result = await _notes.restoreVersion(
+      envelope.artifactId,
+      version,
+    );
+    if (isClosed) return;
+    switch (result) {
+      case Err<AiEnvelope>(:final failure):
+        emit(state.copyWith(generating: false, error: failure.apiError));
+      case Ok<AiEnvelope>(:final value):
+        markCensusDirty();
+        emit(_withDraft(value, generating: false));
     }
   }
 

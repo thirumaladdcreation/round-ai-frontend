@@ -233,4 +233,46 @@ class NotesRepositoryImpl implements NotesRepository {
       return Err<String>(ApiFailure(error));
     }
   }
+
+  @override
+  Future<Result<List<NoteVersion>>> versions(String artifactId) async {
+    try {
+      final Response<Object> response = await _client.get<Object>(
+        ApiEndpoints.artifactVersions(artifactId),
+      );
+      final List<Map<String, dynamic>> rows = Json.itemsOf(
+        response.data,
+        'versions',
+      );
+      return Ok<List<NoteVersion>>(
+        rows
+            .map(
+              (Map<String, dynamic> m) => NoteVersion(
+                version: Json.integer(m['version']),
+                createdAt: Json.string(m['created_at']),
+                editedBy: Json.stringOrNull(m['edited_by']),
+              ),
+            )
+            .where((NoteVersion v) => v.version > 0)
+            .toList(),
+      );
+    } on ApiError catch (error) {
+      return Err<List<NoteVersion>>(ApiFailure(error));
+    }
+  }
+
+  @override
+  Future<Result<AiEnvelope>> restoreVersion(
+    String artifactId,
+    int version,
+  ) async {
+    try {
+      final Response<Object> response = await _client.post<Object>(
+        ApiEndpoints.artifactVersionRestore(artifactId, version),
+      );
+      return Ok<AiEnvelope>(AiEnvelope.fromJson(Json.map(response.data)));
+    } on ApiError catch (error) {
+      return Err<AiEnvelope>(ApiFailure(error));
+    }
+  }
 }

@@ -69,12 +69,12 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: palette.chipIdle,
-        selectedColor: palette.navy,
+        selectedColor: palette.primarySoft,
         disabledColor: palette.chipIdle,
-        labelStyle: AppTypography.medium(fontSize: 12, color: palette.textPrimary),
+        labelStyle: AppTypography.medium(fontSize: 13, color: palette.textPrimary),
         secondaryLabelStyle: AppTypography.medium(
-          fontSize: 12,
-          color: palette.white,
+          fontSize: 13,
+          color: palette.primary,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         shape: RoundedRectangleBorder(
@@ -82,6 +82,7 @@ class AppTheme {
           side: BorderSide(color: palette.border),
         ),
         side: BorderSide(color: palette.border),
+        checkmarkColor: palette.primary,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: palette.surface,
@@ -104,6 +105,24 @@ class AppTheme {
         }),
       ),
       dividerColor: palette.border,
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: palette.primary,
+          side: BorderSide(color: palette.border),
+          textStyle: AppTypography.semiBold(fontSize: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          minimumSize: const Size(0, 44),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: palette.primary,
+          foregroundColor: palette.white,
+          textStyle: AppTypography.semiBold(fontSize: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          minimumSize: const Size(0, 44),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: palette.surface,

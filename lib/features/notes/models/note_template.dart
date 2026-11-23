@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:round_ai/core/utils/clinical_format.dart';
 import 'package:round_ai/core/utils/json_utils.dart';
 
 /// Where a note section comes from. The user types some of them. The rest
@@ -52,9 +53,8 @@ enum SectionSource {
 }
 
 String humanizeKey(String key) {
-  final String words = key.replaceAll('_', ' ').trim();
-  if (words.isEmpty) return '';
-  return words[0].toUpperCase() + words.substring(1);
+  // Prefer clinical copy for wire keys (clinician_plan, section_*, etc.).
+  return humanizeMissingToken(key);
 }
 
 /// Admit H&P history keys the backend template uses (order preserved).

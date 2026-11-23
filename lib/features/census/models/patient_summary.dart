@@ -25,7 +25,7 @@ enum SummaryState {
   }
 }
 
-/// One row from `GET /patients`. Display names are fictional in dev.
+/// One row from `GET /patients`.
 class PatientSummary extends Equatable {
   const PatientSummary({
     required this.id,
@@ -46,7 +46,8 @@ class PatientSummary extends Equatable {
     return PatientSummary(
       id: Json.string(json['id']),
       teamId: Json.string(json['team_id']),
-      displayName: Json.string(json['display_name']),
+      // Seed used to append "(fictional)" — client UI should show clean names.
+      displayName: _cleanDisplayName(Json.string(json['display_name'])),
       room: Json.string(json['room']),
       ageBand: Json.string(json['age_band']),
       sex: Json.string(json['sex']),
@@ -170,4 +171,11 @@ class PatientSummary extends Equatable {
     oneLiner,
     keyChanges,
   ];
+}
+
+/// Drops a trailing seed marker like ` (fictional)` from API display names.
+String _cleanDisplayName(String name) {
+  return name
+      .replaceFirst(RegExp(r'\s*\(fictional\)\s*$', caseSensitive: false), '')
+      .trim();
 }

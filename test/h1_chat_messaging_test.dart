@@ -45,12 +45,10 @@ void main() {
     test('chat tab is on', () {
       AppFeatures.forceAll = null;
       expect(AppFeatures.chat, isTrue);
-      // Chat is drawer / deep-link; bottom bar is Home·Census·Scribe·Rounds·Learn.
-      expect(AppFeatures.chat, isTrue);
-      expect(ShellTabs.visible.contains(ShellTab.chat), isFalse);
+      expect(ShellTabs.visible.contains(ShellTab.chat), isTrue);
     });
 
-    testWidgets('bottom bar shows product modes, not Chat', (
+    testWidgets('bottom bar shows Patients and Chat', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -64,9 +62,10 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Scribe'), findsOneWidget);
-      expect(find.text('Chat'), findsNothing);
+      expect(find.text('Patients'), findsOneWidget);
+      expect(find.text('Chat'), findsOneWidget);
+      expect(find.text('Home'), findsNothing);
+      expect(find.text('Scribe'), findsNothing);
     });
   });
 

@@ -5,7 +5,7 @@ import 'package:round_ai/app/app_typography.dart';
 import 'package:round_ai/core/config/app_features.dart';
 import 'package:round_ai/core/di/injection_container.dart';
 import 'package:round_ai/core/router/app_routes.dart';
-import 'package:round_ai/features/chat/chat_unread_badge.dart';
+import 'package:round_ai/features/authentication/widgets/sign_in_lockup.dart';
 import 'package:round_ai/features/today/models/home_snapshot.dart';
 
 class HomeHeader extends StatelessWidget {
@@ -18,63 +18,91 @@ class HomeHeader extends StatelessWidget {
   final HomeSnapshot snapshot;
   final VoidCallback onNotifications;
 
+  static const Color _navy = Color(0xFF15252F);
+  static const Color _teal = Color(0xFF0A8F9C);
+
   @override
   Widget build(BuildContext context) {
     final AppColors colors = AppColors.of(context);
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
     final int waiting = snapshot.attention.length;
-    return Row(
+    final Color ink = dark ? colors.textPrimary : _navy;
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _HeaderIcon(
-          icon: Icons.menu_rounded,
-          tooltip: 'Menu',
-          onPressed: () => Scaffold.maybeOf(context)?.openDrawer(),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                snapshot.dateLabel,
-                style: AppTypography.caption(color: colors.textMuted),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${snapshot.greeting}, ${snapshot.clinicianName}.',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.bold(
-                  fontSize: 24,
-                  height: 1.2,
-                  color: colors.navy,
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: InkWell(
+                onTap: () => Scaffold.maybeOf(context)?.openDrawer(),
+                borderRadius: BorderRadius.circular(8),
+                child: const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: SignInWordmark(width: 128),
+                  ),
                 ),
               ),
+            ),
+            if (_chatAvailable) ...<Widget>[
+              _ChatHeaderIcon(onPressed: () => context.go(AppRoutes.chat)),
+              const SizedBox(width: 2),
             ],
+            _HeaderIcon(
+              icon: Icons.notifications_none_rounded,
+              tooltip: 'Notifications',
+              badge: waiting == 0 ? null : '$waiting',
+              onPressed: onNotifications,
+            ),
+            const SizedBox(width: 2),
+            _Avatar(
+              initials: _initials(snapshot.clinicianName),
+              onPressed: () => context.go(AppRoutes.profile),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          snapshot.dateLabel,
+          style: AppTypography.semiBold(
+            fontSize: 18,
+            height: 24 / 18,
+            color: ink,
           ),
         ),
-        if (_chatAvailable) ...<Widget>[
-          _ChatHeaderIcon(
-            onPressed: () => context.go(AppRoutes.chat),
+        const SizedBox(height: 4),
+        Text(
+          _countsLine(snapshot),
+          style: AppTypography.regular(
+            fontSize: 14,
+            height: 20 / 14,
+            color: dark ? colors.textSecondary : const Color(0xFF5B6B7A),
           ),
-          const SizedBox(width: 4),
-        ],
-        _HeaderIcon(
-          icon: Icons.notifications_none_rounded,
-          tooltip: 'Notifications',
-          badge: waiting == 0 ? null : '$waiting',
-          onPressed: onNotifications,
-        ),
-        const SizedBox(width: 4),
-        _Avatar(
-          initials: _initials(snapshot.clinicianName),
-          onPressed: () => context.go(AppRoutes.profile),
         ),
       ],
     );
   }
 
-  /// Chat icon needs DI; widget tests may not register the container.
+  String _countsLine(HomeSnapshot snapshot) {
+    final List<String> parts = <String>[
+      if (snapshot.patientCount > 0)
+        snapshot.patientCount == 1
+            ? '1 patient'
+            : '${snapshot.patientCount} patients',
+      if (snapshot.pendingTaskCount > 0)
+        snapshot.pendingTaskCount == 1
+            ? '1 open task'
+            : '${snapshot.pendingTaskCount} open tasks',
+      if (snapshot.draftsAwaitingReview > 0)
+        snapshot.draftsAwaitingReview == 1
+            ? '1 draft to review'
+            : '${snapshot.draftsAwaitingReview} drafts to review',
+    ];
+    if (parts.isEmpty) return snapshot.greeting;
+    return parts.join(' · ');
+  }
+
   bool get _chatAvailable {
     if (!AppFeatures.chat) return false;
     try {
@@ -98,7 +126,49 @@ class HomeHeader extends StatelessWidget {
   }
 }
 
-/// Chat sits in the Home header (not the bottom bar), with unread count.
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+    this.badge,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String? tooltip;
+  final String? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = AppColors.of(context);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, color: colors.textPrimary),
+        ),
+        if (badge != null)
+          Positioned(
+            right: 8,
+            top: 8,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: colors.error,
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.surface, width: 1.5),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _ChatHeaderIcon extends StatelessWidget {
   const _ChatHeaderIcon({required this.onPressed});
 
@@ -106,81 +176,34 @@ class _ChatHeaderIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ChatUnreadBadge badge =
-        InjectionContainer.instance.chatUnreadBadge;
-    return ValueListenableBuilder<int>(
-      valueListenable: badge,
-      builder: (BuildContext context, int _, Widget? child) {
-        return _HeaderIcon(
-          icon: Icons.forum_outlined,
-          tooltip: 'Chat',
-          badge: badge.label,
-          onPressed: onPressed,
-        );
-      },
-    );
-  }
-}
-
-class _HeaderIcon extends StatelessWidget {
-  const _HeaderIcon({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-    this.badge,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-  final String? badge;
-
-  @override
-  Widget build(BuildContext context) {
     final AppColors colors = AppColors.of(context);
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: <Widget>[
-          Material(
-            color: colors.surface,
-            shape: const CircleBorder(),
-            elevation: 1.5,
-            shadowColor: colors.navy.withValues(alpha: 0.12),
-            child: IconButton(
-              tooltip: tooltip,
+    return ValueListenableBuilder<int>(
+      valueListenable: InjectionContainer.instance.chatUnreadBadge,
+      builder: (BuildContext context, int total, _) {
+        return Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            IconButton(
+              tooltip: 'Chat',
               onPressed: onPressed,
-              icon: Icon(icon, color: colors.textPrimary, size: 20),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              icon: Icon(Icons.forum_outlined, color: colors.textPrimary),
             ),
-          ),
-          if (badge != null)
-            Positioned(
-              right: -2,
-              top: -2,
-              child: Container(
-                width: 16,
-                height: 16,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colors.error,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  badge!,
-                  style: AppTypography.bold(
-                    fontSize: 9,
-                    height: 1,
-                    color: colors.white,
+            if (total > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: colors.error,
+                    shape: BoxShape.circle,
                   ),
                 ),
               ),
-            ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
@@ -193,18 +216,20 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppColors colors = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(right: 4),
       child: InkWell(
         onTap: onPressed,
         customBorder: const CircleBorder(),
         child: CircleAvatar(
           radius: 18,
-          backgroundColor: colors.primarySoft,
+          backgroundColor: HomeHeader._teal,
           child: Text(
             initials,
-            style: AppTypography.semiBold(fontSize: 12, color: colors.primary),
+            style: AppTypography.semiBold(
+              fontSize: 12,
+              color: Colors.white,
+            ),
           ),
         ),
       ),

@@ -28,6 +28,25 @@ class HomePatientPreview {
   /// Note/summary status label (e.g. Not generated, Draft ready).
   final String noteStatus;
   final int pendingFacts;
+
+  HomePatientPreview copyWith({
+    int? pendingTasks,
+    String? noteStatus,
+    int? pendingFacts,
+  }) {
+    return HomePatientPreview(
+      id: id,
+      name: name,
+      room: room,
+      reason: reason,
+      latestUpdate: latestUpdate,
+      pendingTasks: pendingTasks ?? this.pendingTasks,
+      ageLabel: ageLabel,
+      genderLabel: genderLabel,
+      noteStatus: noteStatus ?? this.noteStatus,
+      pendingFacts: pendingFacts ?? this.pendingFacts,
+    );
+  }
 }
 
 class HomeAttentionItem {

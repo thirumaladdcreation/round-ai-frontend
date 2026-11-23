@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:round_ai/app/app_colors.dart';
-import 'package:round_ai/app/app_typography.dart';
+import 'package:round_ai/core/constants/app_assets.dart';
 import 'package:round_ai/core/di/injection_container.dart';
 import 'package:round_ai/core/theme/app_spacing.dart';
 import 'package:round_ai/features/today/bloc/home_bloc.dart';
@@ -11,7 +12,6 @@ import 'package:round_ai/features/today/bloc/home_event.dart';
 import 'package:round_ai/features/today/bloc/home_state.dart';
 import 'package:round_ai/features/today/models/home_snapshot.dart';
 import 'package:round_ai/features/today/repository/home_repository.dart';
-import 'package:round_ai/features/today/widgets/home_attention_section.dart';
 import 'package:round_ai/features/today/widgets/home_census_preview.dart';
 import 'package:round_ai/features/today/widgets/home_header.dart';
 import 'package:round_ai/features/today/widgets/home_status_view.dart';
@@ -96,71 +96,88 @@ class HomeDashboard extends StatefulWidget {
 }
 
 class HomeDashboardState extends State<HomeDashboard> {
-  final GlobalKey _attentionKey = GlobalKey();
-
   @override
   Widget build(BuildContext context) {
     final HomeSnapshot snapshot = widget.snapshot;
     final AppColors colors = AppColors.of(context);
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final String bg = dark
+        ? AppAssets.loginBackgroundDark
+        : AppAssets.loginIllustration;
+
     return Material(
       color: colors.background,
-      child: SafeArea(
-        bottom: false,
-        child: RefreshIndicator(
-          onRefresh: () {
-            final Completer<void> done = Completer<void>();
-            context.read<HomeBloc>().add(HomeRefreshed(done: done));
-            return done.future;
-          },
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              8,
-              AppSpacing.md,
-              24,
-            ),
-            children: <Widget>[
-              HomeHeader(
-                snapshot: snapshot,
-                onNotifications: () {
-                  final BuildContext? target = _attentionKey.currentContext;
-                  if (target == null) return;
-                  Scrollable.ensureVisible(
-                    target,
-                    duration: const Duration(milliseconds: 250),
-                  );
-                },
-              ),
-              if (snapshot.isSynthetic) ...<Widget>[
-                const SizedBox(height: 8),
-                Text(
-                  'Fictional demo list — not a signed chart.',
-                  style: AppTypography.caption(color: colors.textMuted),
-                ),
-              ],
-              const SizedBox(height: 8),
-              if (snapshot.briefCounts.headline.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    snapshot.briefCounts.headline,
-                    style: AppTypography.regular(
-                      fontSize: 13,
-                      color: colors.textSecondary,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              height: 240,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  Image.asset(
+                    bg,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.centerRight,
+                  ),
+                  BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            colors.background.withValues(
+                              alpha: dark ? 0.55 : 0.35,
+                            ),
+                            colors.background.withValues(
+                              alpha: dark ? 0.72 : 0.55,
+                            ),
+                            colors.background.withValues(alpha: 0.92),
+                            colors.background,
+                          ],
+                          stops: const <double>[0, 0.35, 0.72, 1],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              // Patient list is the primary home action — open a patient and round.
-              HomeCensusPreview(snapshot: snapshot),
-              const SizedBox(height: 12),
-              KeyedSubtree(
-                key: _attentionKey,
-                child: HomeAttentionSection(snapshot: snapshot),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          SafeArea(
+            bottom: false,
+            child: RefreshIndicator(
+              onRefresh: () {
+                final Completer<void> done = Completer<void>();
+                context.read<HomeBloc>().add(HomeRefreshed(done: done));
+                return done.future;
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  4,
+                  AppSpacing.md,
+                  28,
+                ),
+                children: <Widget>[
+                  HomeHeader(
+                    snapshot: snapshot,
+                    onNotifications: () {},
+                  ),
+                  const SizedBox(height: 18),
+                  // Patient list is the only focus on Today (P3).
+                  HomeCensusPreview(snapshot: snapshot),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

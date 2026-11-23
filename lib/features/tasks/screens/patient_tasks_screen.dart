@@ -2,11 +2,13 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:round_ai/core/di/injection_container.dart';
+import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/router/app_routes.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
 import 'package:round_ai/core/utils/date_format.dart';
 import 'package:round_ai/features/authentication/repository/profile_repository.dart';
+import 'package:round_ai/features/patient/models/patient_detail.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 import 'package:round_ai/features/patient/widgets/chart_entry_scaffold.dart';
 import 'package:round_ai/features/tasks/bloc/patient_tasks_cubit.dart';
@@ -58,11 +60,44 @@ class PatientTasksScreen extends StatelessWidget {
   }
 }
 
-class _TasksView extends StatelessWidget {
+class _TasksView extends StatefulWidget {
   const _TasksView({required this.patientId, required this.aiOff});
 
   final String patientId;
   final bool aiOff;
+
+  @override
+  State<_TasksView> createState() => _TasksViewState();
+}
+
+class _TasksViewState extends State<_TasksView> {
+  String get patientId => widget.patientId;
+  bool get aiOff => widget.aiOff;
+  String _patientName = '';
+  String _room = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIdentity();
+  }
+
+  Future<void> _loadIdentity() async {
+    try {
+      final result = await InjectionContainer.instance.patientRepository
+          .loadDetail(patientId);
+      if (!mounted) return;
+      switch (result) {
+        case Ok<PatientDetail>(:final value):
+          setState(() {
+            _patientName = value.patient.displayName;
+            _room = value.patient.room;
+          });
+        case Err<PatientDetail>():
+          break;
+      }
+    } catch (_) {}
+  }
 
   Future<void> _add(BuildContext context) async {
     final PatientTasksCubit cubit = context.read<PatientTasksCubit>();
@@ -110,6 +145,8 @@ class _TasksView extends StatelessWidget {
         final DateTime now = DateTime.now();
         return ChartEntryScaffold(
           title: 'Tasks',
+          patientName: _patientName,
+          room: _room,
           onRefresh: cubit.load,
           child: state.loading && state.tasks.isEmpty
               ? const SkeletonColumn(count: 3)

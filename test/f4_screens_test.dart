@@ -285,7 +285,25 @@ void main() {
         ..generated = Ok<AiEnvelope>(noteEnvelope(status: 'partial'));
       await _pumpNote(tester, notes, FakeAiRepository());
       await _generate(tester);
-      expect(find.textContaining('Partial result. '), findsOneWidget);
+      expect(find.textContaining('Partial result. '), findsWidgets);
+      expect(find.text('Partial · edit required'), findsOneWidget);
+      expect(_onPressed(tester, 'Mark reviewed'), isNull);
+    });
+
+    testWidgets('regenerate asks before replacing the draft', (
+      WidgetTester tester,
+    ) async {
+      final FakeNotesRepository notes = FakeNotesRepository();
+      await _pumpNote(tester, notes, FakeAiRepository());
+      await _generate(tester);
+      expect(find.text('Draft · review required'), findsOneWidget);
+      await tester.tap(find.text('Regenerate draft'));
+      await tester.pumpAndSettle();
+      expect(find.text('Replace draft?'), findsOneWidget);
+      await tester.tap(find.text('Keep current'));
+      await tester.pumpAndSettle();
+      expect(find.text('Replace draft?'), findsNothing);
+      expect(notes.generateKeys, hasLength(1));
     });
 
     testWidgets('copy is off until reviewed, then copies clean text', (
@@ -310,7 +328,7 @@ void main() {
       await _generate(tester);
       expect(_onPressed(tester, 'Copy note text'), isNull);
       expect(
-        find.text('Copying is available after the note is reviewed.'),
+        find.text('Mark reviewed first, then copy.'),
         findsOneWidget,
       );
 

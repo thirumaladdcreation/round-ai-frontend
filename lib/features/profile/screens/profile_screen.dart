@@ -11,7 +11,7 @@ import 'package:round_ai/shared/widgets/app_button.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
-  void _goHome(BuildContext context) => context.go(AppRoutes.today);
+  void _goHome(BuildContext context) => context.go(AppRoutes.census);
 
   @override
   Widget build(BuildContext context) {

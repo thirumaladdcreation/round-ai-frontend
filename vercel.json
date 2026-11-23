@@ -1,8 +1,4 @@
 {
-  "installCommand": "echo Skipping npm — Flutter deps install in build script",
-  "buildCommand": "bash scripts/vercel-build.sh",
-  "outputDirectory": "build/web",
-  "framework": null,
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],

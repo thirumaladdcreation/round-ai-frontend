@@ -45,48 +45,73 @@ class ApiError implements Exception {
     required this.message,
     this.details,
     this.status,
+    this.requestId,
   });
 
   /// No response: no connection, bad certificate, or similar.
   const ApiError.network([this.message = 'No connection.'])
     : code = 'network_error',
       details = null,
-      status = null;
+      status = null,
+      requestId = null;
 
   const ApiError.timeout()
     : code = 'timeout',
       message = 'Request timed out.',
       details = null,
-      status = null;
+      status = null,
+      requestId = null;
 
   const ApiError.cancelled()
     : code = 'cancelled',
       message = 'Request cancelled.',
       details = null,
-      status = null;
+      status = null,
+      requestId = null;
 
   /// Reads the error envelope. A body without one still becomes an
   /// [ApiError] carrying the HTTP status.
-  factory ApiError.fromResponse(int? status, Object? body) {
+  factory ApiError.fromResponse(
+    int? status,
+    Object? body, {
+    String? requestId,
+  }) {
     if (body is Map) {
       final Object? error = body['error'];
       if (error is Map) {
         final Object? details = error['details'];
+        final String? bodyRequestId = error['request_id']?.toString();
         return ApiError(
           code: error['code']?.toString() ?? 'unknown_error',
           message: error['message']?.toString() ?? '',
           details: details is Map ? Map<String, dynamic>.from(details) : null,
           status: status,
+          requestId: _cleanRequestId(bodyRequestId ?? requestId),
         );
       }
     }
-    return ApiError(code: 'unknown_error', message: '', status: status);
+    return ApiError(
+      code: 'unknown_error',
+      message: '',
+      status: status,
+      requestId: _cleanRequestId(requestId),
+    );
   }
 
   final String code;
   final String message;
   final Map<String, dynamic>? details;
   final int? status;
+
+  /// Support reference from `X-Request-Id` / `error.request_id` (never PHI).
+  final String? requestId;
+
+  /// One line for support, e.g. `Reference: abc123`.
+  String? get referenceLine {
+    final String? id = requestId;
+    if (id == null || id.isEmpty) return null;
+    return 'Reference: $id';
+  }
 
   ApiErrorKind get kind {
     switch (code) {
@@ -137,6 +162,8 @@ class ApiError implements Exception {
         return ApiErrorKind.needsProblem;
       case 'permission_denied':
       case 'permission_permanently_denied':
+      case 'permission_denied_web':
+      case 'permission_permanently_denied_web':
         return ApiErrorKind.permissionDenied;
       case 'chat_disabled':
         return ApiErrorKind.chatDisabled;
@@ -215,9 +242,9 @@ class ApiError implements Exception {
       case ApiErrorKind.dailyLimit:
         return 'Daily AI limit reached.';
       case ApiErrorKind.aiUnavailable:
-        return 'AI service busy, try again.';
+        return 'AI service busy. Your dictation was kept — tap Retry.';
       case ApiErrorKind.aiInvalidOutput:
-        return 'Generation failed. Your data is unchanged.';
+        return 'Generation failed. Your dictation was kept — edit if needed and tap Retry.';
       case ApiErrorKind.evidenceRetrievalFailed:
         return 'Evidence search failed.';
       case ApiErrorKind.querySafety:
@@ -226,7 +253,8 @@ class ApiError implements Exception {
       case ApiErrorKind.tooLarge:
         return 'Photo is too large.';
       case ApiErrorKind.mimeNotAllowed:
-        return 'That photo format is not supported. Try JPEG or PNG.';
+        return 'That photo format is not supported. On iPhone Safari, prefer '
+            'Photo Library or take a screenshot and choose JPEG/PNG.';
       case ApiErrorKind.emptyFile:
         return 'That file is empty.';
       case ApiErrorKind.imageUnreadable:
@@ -243,6 +271,12 @@ class ApiError implements Exception {
         return 'Confirm or mark a differential problem before requesting '
             'ICD suggestions.';
       case ApiErrorKind.permissionDenied:
+        if (code == 'permission_denied_web' ||
+            code == 'permission_permanently_denied_web') {
+          return 'Browser blocked the microphone or camera. In Safari: '
+              'aA → Website Settings → allow Microphone/Camera, then retry. '
+              'Your typed text was kept.';
+        }
         return code == 'permission_permanently_denied'
             ? 'Permission is off. Open Settings to allow it.'
             : 'Permission is needed to continue.';
@@ -261,10 +295,13 @@ class ApiError implements Exception {
       case ApiErrorKind.network:
         return 'No connection. Check your network and try again.';
       case ApiErrorKind.timeout:
-        return 'The request took too long. Try again.';
+        return 'The request took too long. The server may be waking up — wait a few seconds and try again.';
       case ApiErrorKind.cancelled:
         return 'Cancelled.';
       case ApiErrorKind.other:
+        if (code == 'capture_failed') {
+          return 'Could not start the microphone or camera. Check permissions and try again.';
+        }
         if (code == 'text_required') {
           return 'Enter the plan text first, then save.';
         }
@@ -281,7 +318,7 @@ class ApiError implements Exception {
           return 'The draft could not be validated from that update. Your text was kept — edit and Retry.';
         }
         if (status != null && status! >= 500) {
-          return 'Note generation failed. Your dictation and edits were kept — tap Retry.';
+          return 'Server interrupted (demo host may have slept). Your dictation was kept — wait a few seconds and tap Retry.';
         }
         return 'Note generation failed. Your entered text was kept — tap Retry.';
     }
@@ -289,5 +326,12 @@ class ApiError implements Exception {
 
   /// Safe to log: no message text, no details.
   @override
-  String toString() => 'ApiError($status, $code)';
+  String toString() => 'ApiError($status, $code, $requestId)';
+}
+
+String? _cleanRequestId(String? raw) {
+  if (raw == null) return null;
+  final String cleaned = raw.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '');
+  if (cleaned.isEmpty) return null;
+  return cleaned.length > 64 ? cleaned.substring(0, 64) : cleaned;
 }

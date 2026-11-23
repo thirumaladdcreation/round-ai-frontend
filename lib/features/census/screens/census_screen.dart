@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:round_ai/core/config/app_environment.dart';
 import 'package:round_ai/core/di/injection_container.dart';
 import 'package:round_ai/core/router/app_routes.dart';
+import 'package:round_ai/core/sync/patient_status_store.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
 import 'package:round_ai/features/authentication/repository/profile_repository.dart';
@@ -119,177 +120,196 @@ class _CensusViewState extends State<CensusView> {
                     context.read<CensusBloc>().add(const CensusRequested()),
               );
             }
-            final List<PatientSummary> visible = _visible(state.patients);
-            return RefreshIndicator(
-              onRefresh: () => _refresh(context),
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-                children: <Widget>[
-                  Text(
-                    '$teamLabel · ${state.patients.length} PATIENTS',
-                    style: AppTypography.semiBold(
-                      fontSize: 11,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          'My Census',
-                          style: AppTypography.bold(
-                            fontSize: 28,
+            PatientStatusStore? statusStore;
+            try {
+              statusStore = InjectionContainer.instance.patientStatusStore;
+            } catch (_) {}
+            Widget listFor(List<PatientSummary> patients) {
+              final List<PatientSummary> visible = _visible(patients);
+              return RefreshIndicator(
+                onRefresh: () => _refresh(context),
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Patients',
+                                style: AppTypography.bold(
+                                  fontSize: 26,
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                '$teamLabel · ${patients.length} total',
+                                style: AppTypography.regular(
+                                  fontSize: 13,
+                                  color: colors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Export census',
+                          onPressed: () => showCensusExportSheet(context),
+                          icon: Icon(
+                            Icons.ios_share_rounded,
                             color: colors.textPrimary,
                           ),
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Export census',
-                        onPressed: () => showCensusExportSheet(context),
-                        icon: const Icon(Icons.ios_share_rounded),
-                      ),
-                      IconButton.filled(
-                        tooltip: 'Add patient',
-                        onPressed: () => showAddPatientSheet(context),
-                        icon: const Icon(Icons.person_add_alt_1_rounded),
+                        IconButton(
+                          tooltip: 'Add patient',
+                          onPressed: () => showAddPatientSheet(context),
+                          icon: const Icon(
+                            Icons.person_add_alt_1_rounded,
+                            color: Color(0xFF0A8F9C),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!AppEnvironment.useDemo) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final Object? next = await context.push<Object>(
+                                AppRoutes.censusIntakeDictate,
+                              );
+                              if (!context.mounted) return;
+                              await _afterIntake(context, next);
+                            },
+                            icon: const Icon(Icons.mic_none_outlined, size: 18),
+                            label: const Text('Dictate'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final Object? next = await context.push<Object>(
+                                AppRoutes.censusIntakePhoto,
+                              );
+                              if (!context.mounted) return;
+                              await _afterIntake(context, next);
+                            },
+                            icon: const Icon(
+                              Icons.document_scanner_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('Scan'),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                  if (!AppEnvironment.useDemo) ...<Widget>[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 14),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: <Widget>[
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final Object? next = await context.push<Object>(
-                              AppRoutes.censusIntakeDictate,
-                            );
-                            if (!context.mounted) return;
-                            await _afterIntake(context, next);
-                          },
-                          icon: const Icon(Icons.mic_none_outlined, size: 18),
-                          label: const Text('Dictate census'),
+                        _FilterChip(
+                          label: 'All (${patients.length})',
+                          selected: _filter == _CensusFilter.all,
+                          onTap: () =>
+                              setState(() => _filter = _CensusFilter.all),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            final Object? next = await context.push<Object>(
-                              AppRoutes.censusIntakePhoto,
-                            );
-                            if (!context.mounted) return;
-                            await _afterIntake(context, next);
-                          },
-                          icon: const Icon(
-                            Icons.document_scanner_outlined,
-                            size: 18,
+                        _FilterChip(
+                          label:
+                              'Facts (${patients.where((PatientSummary p) => p.unreviewedFacts > 0).length})',
+                          selected: _filter == _CensusFilter.unreviewedFacts,
+                          onTap: () => setState(
+                            () => _filter = _CensusFilter.unreviewedFacts,
                           ),
-                          label: const Text('Scan census'),
+                        ),
+                        _FilterChip(
+                          label:
+                              'Outdated (${patients.where((PatientSummary p) => p.summaryState == SummaryState.outdated).length})',
+                          selected: _filter == _CensusFilter.outdated,
+                          onTap: () => setState(
+                            () => _filter = _CensusFilter.outdated,
+                          ),
                         ),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      _FilterChip(
-                        label: 'All',
-                        selected: _filter == _CensusFilter.all,
-                        onTap: () =>
-                            setState(() => _filter = _CensusFilter.all),
-                      ),
-                      _FilterChip(
-                        label: 'Unreviewed facts',
-                        selected: _filter == _CensusFilter.unreviewedFacts,
-                        onTap: () => setState(
-                          () => _filter = _CensusFilter.unreviewedFacts,
+                    if (state.status == CensusStatus.failure) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Could not refresh. Showing the last list. ${state.error ?? ''}',
+                        style: AppTypography.regular(
+                          fontSize: 12,
+                          color: colors.error,
                         ),
-                      ),
-                      _FilterChip(
-                        label: 'Outdated summary',
-                        selected: _filter == _CensusFilter.outdated,
-                        onTap: () =>
-                            setState(() => _filter = _CensusFilter.outdated),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _filter == _CensusFilter.all
-                        ? 'Drag to reorder · sort order, then room'
-                        : 'Filtered view · reorder on All',
-                    style: AppTypography.regular(
-                      fontSize: 12,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                  if (state.status == CensusStatus.failure) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Could not refresh. Showing the last list. ${state.error ?? ''}',
-                      style: AppTypography.regular(
-                        fontSize: 12,
-                        color: colors.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  if (visible.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 32),
-                      child: Text(
-                        state.patients.isEmpty
-                            ? 'No patients on this team yet. Use the add button to add one.'
-                            : 'No patients match this view.',
-                        textAlign: TextAlign.center,
-                        style: AppTypography.regular(
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    )
-                  else if (_filter == _CensusFilter.all)
-                    ReorderableListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: visible.length,
-                      onReorder: (int oldIndex, int newIndex) {
-                        if (newIndex > oldIndex) newIndex -= 1;
-                        context.read<CensusBloc>().add(
-                          CensusReorderRequested(
-                            oldIndex: oldIndex,
-                            newIndex: newIndex,
+                    const SizedBox(height: 12),
+                    if (visible.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 32),
+                        child: Text(
+                          patients.isEmpty
+                              ? 'No patients on this team yet. Use the add button to add one.'
+                              : 'No patients match this view.',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.regular(
+                            color: colors.textSecondary,
                           ),
-                        );
-                      },
-                      itemBuilder: (BuildContext context, int index) {
-                        final PatientSummary patient = visible[index];
-                        return Padding(
-                          key: ValueKey<String>(patient.id),
+                        ),
+                      )
+                    else if (_filter == _CensusFilter.all)
+                      ReorderableListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: visible.length,
+                        onReorder: (int oldIndex, int newIndex) {
+                          if (newIndex > oldIndex) newIndex -= 1;
+                          context.read<CensusBloc>().add(
+                            CensusReorderRequested(
+                              oldIndex: oldIndex,
+                              newIndex: newIndex,
+                            ),
+                          );
+                        },
+                        itemBuilder: (BuildContext context, int index) {
+                          final PatientSummary patient = visible[index];
+                          return Padding(
+                            key: ValueKey<String>(patient.id),
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: PatientCard(
+                              patient: patient,
+                              dragIndex: index,
+                              onTap: () => _openPatient(context, patient),
+                            ),
+                          );
+                        },
+                      )
+                    else
+                      ...visible.map(
+                        (PatientSummary patient) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: PatientCard(
                             patient: patient,
-                            dragIndex: index,
                             onTap: () => _openPatient(context, patient),
                           ),
-                        );
-                      },
-                    )
-                  else
-                    ...visible.map(
-                      (PatientSummary patient) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: PatientCard(
-                          patient: patient,
-                          onTap: () => _openPatient(context, patient),
                         ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                ),
+              );
+            }
+
+            if (statusStore == null) {
+              return listFor(state.patients);
+            }
+            return ListenableBuilder(
+              listenable: statusStore,
+              builder: (BuildContext context, Widget? _) {
+                return listFor(statusStore!.overlayAll(state.patients));
+              },
             );
           },
         ),
@@ -332,17 +352,17 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppColors colors = AppColors.of(context);
     return Material(
-      color: selected ? colors.primary : colors.surface,
+      color: selected ? const Color(0xFF0A8F9C) : colors.surface,
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(24),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: selected ? colors.primary : colors.border,
+              color: selected ? const Color(0xFF0A8F9C) : colors.border,
             ),
           ),
           child: Text(
@@ -376,119 +396,210 @@ class PatientCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppColors colors = AppColors.of(context);
-    final (Color bg, Color fg) = switch (patient.summaryState) {
-      SummaryState.notGenerated => (colors.chipIdle, colors.textSecondary),
-      SummaryState.draftReady => (colors.pendingBg, colors.pending),
-      SummaryState.reviewed => (colors.successSoft, colors.success),
-      SummaryState.outdated => (colors.warningSoft, colors.warning),
+    final (Color bg, Color fg, String label) = switch (patient.summaryState) {
+      SummaryState.notGenerated => (
+        colors.criticalBg,
+        colors.critical,
+        'Not started',
+      ),
+      SummaryState.draftReady => (
+        const Color(0xFFE8F3FF),
+        colors.primary,
+        'Draft',
+      ),
+      SummaryState.reviewed => (
+        colors.successSoft,
+        colors.success,
+        'Reviewed',
+      ),
+      SummaryState.outdated => (
+        colors.chipIdle,
+        colors.textSecondary,
+        'Outdated',
+      ),
     };
-    final int facts = patient.unreviewedFacts;
-    final int tasks = patient.openTasks;
+    final String meta = <String>[
+      if (patient.room.isNotEmpty) 'Rm ${patient.room}',
+      if (patient.sex.isNotEmpty) patient.sex,
+      if (patient.ageBand.isNotEmpty) patient.ageBand,
+    ].join(' · ');
+    final String oneLiner = patient.oneLiner.trim();
+    final List<String> changes = patient.keyChanges
+        .map((String s) => s.trim())
+        .where((String s) => s.isNotEmpty)
+        .take(2)
+        .toList(growable: false);
     return Material(
       color: colors.surface,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: colors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: colors.primarySoft,
-                    child: Text(
-                      patient.initials,
-                      style: AppTypography.bold(
-                        fontSize: 14,
-                        color: colors.primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          patient.room.trim().isEmpty
-                              ? patient.displayName
-                              : '${patient.room} · ${patient.displayName}',
-                          style: AppTypography.semiBold(
-                            fontSize: 16,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          patient.metaLine,
-                          style: AppTypography.regular(
-                            fontSize: 12,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (dragIndex != null)
-                    ReorderableDragStartListener(
-                      index: dragIndex!,
-                      child: Icon(
-                        Icons.drag_handle_rounded,
-                        color: colors.textMuted,
-                      ),
-                    )
-                  else
-                    Icon(Icons.chevron_right_rounded, color: colors.textMuted),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: bg,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      patient.summaryState.label,
-                      style: AppTypography.semiBold(color: fg, fontSize: 11),
-                    ),
-                  ),
-                  const Spacer(),
-                  Flexible(
-                    child: Text(
-                      <String>[
-                        facts == 0
-                            ? 'No facts to review'
-                            : '$facts ${facts == 1 ? 'fact' : 'facts'} to review',
-                        tasks == 0
-                            ? 'No open tasks'
-                            : '$tasks ${tasks == 1 ? 'task' : 'tasks'}',
-                      ].join(' · '),
-                      textAlign: TextAlign.end,
-                      style: AppTypography.regular(
-                        fontSize: 12,
-                        color: colors.textMuted,
-                      ),
-                    ),
-                  ),
-                ],
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: colors.navy.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFFD6F3F6),
+                child: Text(
+                  patient.initials,
+                  style: AppTypography.bold(
+                    fontSize: 14,
+                    color: const Color(0xFF0A8F9C),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      patient.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.semiBold(
+                        fontSize: 15,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    if (meta.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.regular(
+                          fontSize: 13,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                    if (oneLiner.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        oneLiner,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.regular(
+                          fontSize: 13,
+                          height: 1.3,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ],
+                    if (changes.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
+                      for (final String change in changes)
+                        Text(
+                          '• $change',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.regular(
+                            fontSize: 12,
+                            height: 1.3,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                    ],
+                    if (patient.unreviewedFacts > 0 ||
+                        patient.openTasks > 0) ...<Widget>[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: <Widget>[
+                          if (patient.unreviewedFacts > 0)
+                            _CensusBadge(
+                              label: patient.unreviewedFacts == 1
+                                  ? '1 fact to review'
+                                  : '${patient.unreviewedFacts} facts to review',
+                              background: colors.criticalBg,
+                              foreground: colors.critical,
+                            ),
+                          if (patient.openTasks > 0)
+                            _CensusBadge(
+                              label: patient.openTasks == 1
+                                  ? '1 open task'
+                                  : '${patient.openTasks} open tasks',
+                              background: const Color(0xFFE8F3FF),
+                              foreground: colors.primary,
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  label,
+                  style: AppTypography.semiBold(color: fg, fontSize: 11),
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (dragIndex != null)
+                ReorderableDragStartListener(
+                  index: dragIndex!,
+                  child: Icon(
+                    Icons.drag_handle_rounded,
+                    color: colors.textSecondary,
+                  ),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.textSecondary,
+                ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _CensusBadge extends StatelessWidget {
+  const _CensusBadge({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.semiBold(color: foreground, fontSize: 11),
       ),
     );
   }

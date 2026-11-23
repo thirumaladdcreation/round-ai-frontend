@@ -4,19 +4,17 @@ import 'package:round_ai/core/router/app_routes.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
 import 'package:round_ai/features/census/models/patient_summary.dart';
+import 'package:round_ai/features/patient/widgets/patient_chrome.dart';
 import 'package:round_ai/features/scribe/widgets/scribe_patient_picker.dart';
 
-/// Scribe mode hub: census capture + patient notes / ICD / intake shortcuts.
+/// Secondary entry for census capture / patient Add update (not a bottom tab).
 class ScribeHubScreen extends StatelessWidget {
   const ScribeHubScreen({super.key});
 
-  Future<void> _withPatient(
-    BuildContext context,
-    void Function(String patientId) open,
-  ) async {
+  Future<void> _addUpdate(BuildContext context) async {
     final PatientSummary? patient = await pickScribePatient(context);
     if (patient == null || !context.mounted) return;
-    open(patient.id);
+    await showAddUpdateSheet(context, patient.id);
   }
 
   @override
@@ -29,22 +27,32 @@ class ScribeHubScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: <Widget>[
             Text(
-              'Scribe',
-              style: AppTypography.bold(fontSize: 28, color: colors.navy),
+              'Add update',
+              style: AppTypography.bold(fontSize: 24, color: colors.navy),
             ),
             const SizedBox(height: 8),
             Text(
-              'Make the census by voice or photo, then add chart data, notes, '
-              'and ICD suggestions for a patient.',
+              'Pick a patient, then dictate, photograph, or paste chart text. '
+              'Census capture stays available below.',
               style: AppTypography.regular(
                 fontSize: 14,
                 height: 1.4,
                 color: colors.textSecondary,
               ),
             ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => _addUpdate(context),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Choose patient'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0A8F9C),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
             const SizedBox(height: 28),
             Text(
-              'Make your census',
+              'Census capture',
               style: AppTypography.semiBold(fontSize: 15, color: colors.navy),
             ),
             const SizedBox(height: 10),
@@ -63,63 +71,9 @@ class ScribeHubScreen extends StatelessWidget {
             ),
             _ScribeAction(
               icon: Icons.people_alt_outlined,
-              title: 'Open census',
+              title: 'Open patients',
               subtitle: 'Review or manually add patients.',
               onTap: () => context.go(AppRoutes.census),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'On a patient',
-              style: AppTypography.semiBold(fontSize: 15, color: colors.navy),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Pick someone from the census, then continue.',
-              style: AppTypography.regular(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _ScribeAction(
-              icon: Icons.record_voice_over_outlined,
-              title: 'Dictate into chart',
-              subtitle: 'Audio → source + pending facts (confirm before use).',
-              onTap: () => _withPatient(
-                context,
-                (String id) =>
-                    context.push(AppRoutes.patientIntakeDictatePath(id)),
-              ),
-            ),
-            _ScribeAction(
-              icon: Icons.photo_outlined,
-              title: 'Photo into chart',
-              subtitle: 'Image extract → source + pending facts.',
-              onTap: () => _withPatient(
-                context,
-                (String id) =>
-                    context.push(AppRoutes.patientIntakePhotoPath(id)),
-              ),
-            ),
-            _ScribeAction(
-              icon: Icons.note_alt_outlined,
-              title: 'Progress / H&P notes',
-              subtitle:
-                  'Generate templates from reviewed facts. Plan must be entered.',
-              onTap: () => _withPatient(
-                context,
-                (String id) => context.push(AppRoutes.notePath(id)),
-              ),
-            ),
-            _ScribeAction(
-              icon: Icons.medical_information_outlined,
-              title: 'ICD suggestions',
-              subtitle:
-                  'Open the chart → Problems → Suggest ICD. Not a billing determination.',
-              onTap: () => _withPatient(
-                context,
-                (String id) => context.push(AppRoutes.patientPath(id)),
-              ),
             ),
           ],
         ),
@@ -148,28 +102,16 @@ class _ScribeAction extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colors.border),
-            ),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: <Widget>[
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: colors.primarySoft,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: colors.primary),
-                ),
-                const SizedBox(width: 14),
+                Icon(icon, color: const Color(0xFF0A8F9C)),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,19 +123,19 @@ class _ScribeAction extends StatelessWidget {
                           color: colors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         subtitle,
                         style: AppTypography.regular(
                           fontSize: 12,
-                          height: 1.35,
+                          height: 1.3,
                           color: colors.textSecondary,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: colors.textMuted),
+                Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
               ],
             ),
           ),

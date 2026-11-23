@@ -12,6 +12,7 @@ class ChartEntryScaffold extends StatelessWidget {
     this.onRefresh,
     this.patientName,
     this.room,
+    this.trailing,
     super.key,
   });
 
@@ -27,6 +28,9 @@ class ChartEntryScaffold extends StatelessWidget {
   /// Optional sticky patient identity under the screen title.
   final String? patientName;
   final String? room;
+
+  /// Optional header action (e.g. History).
+  final Widget? trailing;
 
   Widget _body() {
     final Widget scroll = SingleChildScrollView(
@@ -92,6 +96,7 @@ class ChartEntryScaffold extends StatelessWidget {
                         ],
                       ),
                     ),
+                    ?trailing,
                   ],
                 ),
               ),

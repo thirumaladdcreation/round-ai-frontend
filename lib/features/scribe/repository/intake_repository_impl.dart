@@ -34,7 +34,9 @@ class IntakeRepositoryImpl implements IntakeRepository {
           idempotencyKey: idempotencyKey,
           media: m,
           eventTime: eventTime?.toUtc().toIso8601String(),
-          filename: m.kind == MediaKind.audio ? 'dictation.m4a' : 'photo.jpg',
+          filename: m.kind == MediaKind.audio
+              ? (m.mimeType.contains('wav') ? 'dictation.wav' : 'dictation.m4a')
+              : 'photo.jpg',
           cancelToken: cancelToken,
           onSendProgress: onSendProgress,
         ),
@@ -59,7 +61,9 @@ class IntakeRepositoryImpl implements IntakeRepository {
           path: ApiEndpoints.transcribe,
           idempotencyKey: idempotencyKey,
           media: m,
-          filename: 'dictation.m4a',
+          filename: m.mimeType.contains('wav')
+              ? 'dictation.wav'
+              : 'dictation.m4a',
           cancelToken: cancelToken,
           onSendProgress: onSendProgress,
         ),

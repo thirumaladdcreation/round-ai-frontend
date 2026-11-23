@@ -22,17 +22,33 @@ class AppBottomNavBar extends StatelessWidget {
   List<_NavSpec> get _items => <_NavSpec>[
     for (final ShellTab tab in ShellTabs.visible)
       switch (tab) {
-        // Labels/icons aligned to clinical prototype bottom bar where possible.
-        // Scribe stays in-bar (product); prototype puts Tasks here instead.
-        ShellTab.today => const _NavSpec(
-          Icons.home_rounded,
-          Icons.home_outlined,
-          'Today',
-        ),
         ShellTab.census => const _NavSpec(
           Icons.groups_outlined,
           Icons.groups_outlined,
-          'Census',
+          'Patients',
+        ),
+        ShellTab.tasks => _NavSpec(
+          Icons.checklist_outlined,
+          Icons.checklist_outlined,
+          'Tasks',
+          badge: tasksBadge,
+        ),
+        ShellTab.learn => const _NavSpec(
+          Icons.menu_book_outlined,
+          Icons.menu_book_outlined,
+          'Learn',
+        ),
+        ShellTab.chat => _NavSpec(
+          Icons.forum_outlined,
+          Icons.forum_outlined,
+          'Chat',
+          badge: chatBadge,
+        ),
+        // Secondary destinations — not in [ShellTabs.visible].
+        ShellTab.today => const _NavSpec(
+          Icons.home_rounded,
+          Icons.home_outlined,
+          'Home',
         ),
         ShellTab.scribe => const _NavSpec(
           Icons.mic_none_outlined,
@@ -43,24 +59,6 @@ class AppBottomNavBar extends StatelessWidget {
           Icons.medical_services_outlined,
           Icons.medical_services_outlined,
           'Rounds',
-        ),
-        ShellTab.learn => const _NavSpec(
-          Icons.menu_book_outlined,
-          Icons.menu_book_outlined,
-          'Learn',
-        ),
-        // Kept for exhaustiveness; not shown in [ShellTabs.visible].
-        ShellTab.tasks => _NavSpec(
-          Icons.checklist_outlined,
-          Icons.checklist_outlined,
-          'Tasks',
-          badge: tasksBadge,
-        ),
-        ShellTab.chat => _NavSpec(
-          Icons.forum_outlined,
-          Icons.forum_outlined,
-          'Chat',
-          badge: chatBadge,
         ),
       },
   ];

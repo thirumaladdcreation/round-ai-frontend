@@ -5,6 +5,7 @@
 class ApiEndpoints {
   const ApiEndpoints._();
 
+  static const String health = '/health';
   static const String login = '/auth/login';
   static const String me = '/me';
   static const String templates = '/templates';
@@ -20,6 +21,14 @@ class ApiEndpoints {
   /// Confirm or reject facts: `{ "fact_ids": [...], "status": "confirmed"|"rejected" }`.
   static String patientFactsReview(String patientId) =>
       '/patients/$patientId/facts/review';
+
+  static String factPatch(String factId) => '/facts/$factId';
+
+  static String patientPlanProposals(String id) =>
+      '/patients/$id/plan-proposals';
+
+  static String patientPlanProposalsAccept(String id) =>
+      '/patients/$id/plan-proposals/accept';
   static String patientSummary(String id) => '/patients/$id/summary';
   static String patientChanges(String id) => '/patients/$id/changes';
   static String patientAsk(String id) => '/patients/$id/ask';
@@ -41,6 +50,9 @@ class ApiEndpoints {
   static String artifactSectionRewrite(String id, String sectionKey) =>
       '/artifacts/$id/sections/$sectionKey/rewrite';
   static String artifactExport(String id) => '/artifacts/$id/export';
+  static String artifactVersions(String id) => '/artifacts/$id/versions';
+  static String artifactVersionRestore(String id, int version) =>
+      '/artifacts/$id/versions/$version/restore';
 
   static String patientProblems(String id) => '/patients/$id/problems';
   static String problemsSuggest(String id) => '/patients/$id/problems/suggest';

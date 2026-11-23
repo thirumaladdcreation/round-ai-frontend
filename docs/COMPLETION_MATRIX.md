@@ -10,11 +10,11 @@ Date: 2026-11-20. Statuses: PASS / PARTIAL / FAIL / BLOCKED only.
 | 4 | Simplified home | PASS | Patient list with one-liner, key changes, pending facts/tasks, note status. |
 | 5 | Patient workspace | PASS | Sticky identity chrome; problem-wise A&P; single Create note; Add update consolidated. |
 | 6 | Fact review | PASS | Passages + O2 context; bulk review; intake → Review facts; plan bridge after dictation. |
-| 7 | Rosa demo consistency | PASS | `purgeIdentityFacts` rejects John Doe / visit-date identity and scrubs source lines; `ensureRosaDemoCase` idempotent; regression tests. |
-| 8 | Note draft/review/copy | PASS | Draft/reviewed/outdated labels; regenerate confirm; section edit clears soft `partial`; copy after review. |
-| 9 | Learning Elevated Pulse | PASS | 5-option approved bank; miss → `next_review_at` + review queue; fictional example.com curated reads removed. |
-| 10 | ICD toggle in A&P + note | PASS | Structured plan `include_icd`; codes only when accepted; wording preserved when toggled. |
-| 11 | Mobile Safari E2E | BLOCKED | Layout/web shell OK; physical iPhone Safari mic/camera not performed this pass. |
+| 7 | Rosa demo consistency | PASS | Live `roundsai-demo` verified: Rosa has 0 pending identity facts; seed purge deletes John Doe / 2023 visit-date rows and scrubs sources; extract binds `patient_id` to route patient + source; regression tests. |
+| 8 | Note draft/review/copy | PASS | Draft/partial/reviewed/outdated labels; regenerate confirm (full + section); compose cache + leave confirm; save retry; problem-wise A&P display/bridge; copy after review. |
+| 9 | Learning Elevated Pulse | PASS | Seed answer keys + explanations normalized; miss due immediately then 1/3/7; curated PubMed reads; Learn empty states with next steps; census topics ↔ problems. |
+| 10 | ICD toggle in A&P + note | PASS | Inline/full A&P “Include ICD-10” + Review ICD; codes beside diagnoses in plan/note; Elevated Pulse flagged (no invented code); wording preserved. |
+| 11 | Mobile Safari E2E | PARTIAL | Code hardened: Safari permission copy, upload cancel, WAV filename, clipboard fallback, local TZ labels, viewport meta. Physical iPhone Safari mic/OCR still required — see `docs/SAFARI_E2E_CHECKLIST.md`. |
 
 ## Verification run (2026-11-20)
 
@@ -26,14 +26,14 @@ Date: 2026-11-20. Statuses: PASS / PARTIAL / FAIL / BLOCKED only.
 | `flutter build web --release` | PASS (`√ Built build/web`) |
 | Vercel | Prior deploy of `6822ee6` passed compile; this commit must redeploy |
 | Backend health | `https://round-ai-backend.fly.dev/health` → ok, `provider: openai` |
-| iPhone Safari | BLOCKED — not device-tested |
+| iPhone Safari | PARTIAL — software hardenings done; device checklist open |
 
 ## Remaining limitations
 
 - Soft AI validation can still save artifacts as `partial` until the clinician edits; review/export remain blocked while flags/placeholders remain.
 - Fly production DB must run seed/ensure path (or restart with seed hook) so Rosa purge + Elevated Pulse bank apply on the live volume.
 - Full `flutter test` suite beyond note/learning-focused files may include unrelated flakes; critical note paths above were re-run green.
-- Physical iPhone Safari mic/OCR E2E still required for requirement 11 PASS.
+- Physical iPhone Safari mic/OCR E2E still required for requirement 11 PASS (`docs/SAFARI_E2E_CHECKLIST.md`).
 
 ## Manual client demo steps
 

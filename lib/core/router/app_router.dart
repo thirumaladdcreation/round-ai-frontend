@@ -383,7 +383,13 @@ class AppRouter {
             },
         branches: <StatefulShellBranch>[
           for (final ShellTab tab in ShellTabs.visible) _branch(tab),
-          // Drawer / deep-link destinations (not in the bottom bar).
+          // Secondary destinations (drawer / deep links — not in the bottom bar).
+          if (!ShellTabs.visible.contains(ShellTab.today))
+            _branch(ShellTab.today),
+          if (!ShellTabs.visible.contains(ShellTab.scribe))
+            _branch(ShellTab.scribe),
+          if (AppFeatures.rounds && !ShellTabs.visible.contains(ShellTab.rounds))
+            _branch(ShellTab.rounds),
           if (!ShellTabs.visible.contains(ShellTab.tasks))
             _branch(ShellTab.tasks),
           if (AppFeatures.chat && !ShellTabs.visible.contains(ShellTab.chat))

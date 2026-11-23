@@ -66,4 +66,15 @@ class DemoNotesRepository implements NotesRepository {
 
   @override
   Future<Result<String>> export(String artifactId) async => Err<String>(_off);
+
+  @override
+  Future<Result<List<NoteVersion>>> versions(String artifactId) async =>
+      const Ok<List<NoteVersion>>(<NoteVersion>[]);
+
+  @override
+  Future<Result<AiEnvelope>> restoreVersion(
+    String artifactId,
+    int version,
+  ) async =>
+      Err<AiEnvelope>(_off);
 }

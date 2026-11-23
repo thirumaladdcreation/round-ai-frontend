@@ -117,6 +117,21 @@ void main() {
     expect(SummaryState.parse(null), SummaryState.notGenerated);
   });
 
+  test('patient display names drop trailing (fictional) seed marker', () {
+    final PatientSummary p = PatientSummary.fromJson(<String, dynamic>{
+      'id': 'p1',
+      'team_id': 't1',
+      'display_name': 'Rosa Martinez (fictional)',
+      'room': '509A',
+      'age_band': '60s',
+      'sex': 'F',
+      'summary_state': 'Not generated',
+      'unreviewed_facts': 0,
+      'open_tasks': 0,
+    });
+    expect(p.displayName, 'Rosa Martinez');
+  });
+
   test('a fact with no time keeps the time unknown', () {
     final Fact f = Fact.fromJson(<String, dynamic>{
       'id': 'f1',

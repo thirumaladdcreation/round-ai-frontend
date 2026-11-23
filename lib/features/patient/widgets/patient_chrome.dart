@@ -144,6 +144,14 @@ Future<void> showAddUpdateSheet(BuildContext context, String patientId) {
                   context.push('/patient/$patientId/facts/new');
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.fact_check_outlined),
+                title: const Text('Review chart facts'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  context.push('/patient/$patientId/facts');
+                },
+              ),
             ],
           ),
         ),

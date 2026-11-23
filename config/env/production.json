@@ -1,4 +1,4 @@
 {
-  "API_BASE_URL": "https://round-ai-backend.fly.dev",
+  "API_BASE_URL": "https://roundsai-demo.fly.dev",
   "APP_ENV": "production"
 }

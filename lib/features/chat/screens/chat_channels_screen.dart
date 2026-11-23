@@ -78,7 +78,7 @@ class _InboxView extends StatelessWidget {
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (bool didPop, Object? result) {
-            if (!didPop) context.go(AppRoutes.today);
+            if (!didPop) context.go(AppRoutes.census);
           },
           child: Scaffold(
           backgroundColor: colors.background,
@@ -126,7 +126,7 @@ class _InboxView extends StatelessWidget {
                                   IconButton(
                                     tooltip: 'Back to Home',
                                     onPressed: () =>
-                                        context.go(AppRoutes.today),
+                                        context.go(AppRoutes.census),
                                     icon: Icon(
                                       Icons.arrow_back_rounded,
                                       color: colors.textPrimary,

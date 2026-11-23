@@ -212,7 +212,35 @@ class _TopicQuizScreenState extends State<TopicQuizScreen> {
               style: AppTypography.regular(color: colors.critical),
             ),
             const SizedBox(height: 12),
-            AppButton(label: 'Try again', onPressed: _load, expand: false),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                AppButton(label: 'Try again', onPressed: _load, expand: false),
+                if (!_allowGenerate)
+                  AppButton(
+                    label: 'Include AI drafts',
+                    onPressed: () {
+                      setState(() => _allowGenerate = true);
+                      _idempotencyKey = IdempotencyKey.create();
+                      _load();
+                    },
+                    expand: false,
+                  ),
+                AppButton(
+                  label: 'Review queue',
+                  onPressed: () => context.push(AppRoutes.learningReviewQueue),
+                  expand: false,
+                ),
+                AppButton(
+                  label: 'Open reads',
+                  onPressed: () => context.push(
+                    AppRoutes.topicReadsPath(widget.topic),
+                  ),
+                  expand: false,
+                ),
+              ],
+            ),
           ],
           if (q != null) ...<Widget>[
             if (q.isUnreviewed || q.learnerLabel.isNotEmpty)
@@ -363,7 +391,9 @@ class _TopicQuizScreenState extends State<TopicQuizScreen> {
               if (answer.nextReviewAt != null) ...<Widget>[
                 const SizedBox(height: 6),
                 Text(
-                  'Next review scheduled (1 / 3 / 7 day spacing).',
+                  answer.correct
+                      ? 'Spaced review continues on the 1 / 3 / 7 day schedule when due.'
+                      : 'Saved for spaced review. Open Review queue to retry now, then return later on the 1 / 3 / 7 day schedule.',
                   style: AppTypography.regular(
                     fontSize: 12,
                     color: colors.textMuted,
@@ -371,7 +401,21 @@ class _TopicQuizScreenState extends State<TopicQuizScreen> {
                 ),
               ],
               const SizedBox(height: 16),
+              if (!answer.correct) ...<Widget>[
+                AppButton(
+                  label: 'Open Review queue',
+                  onPressed: () => context.push(AppRoutes.learningReviewQueue),
+                ),
+                const SizedBox(height: 8),
+              ],
               AppButton(label: 'Next question', onPressed: _next),
+              const SizedBox(height: 8),
+              AppButton(
+                label: 'Supporting reads',
+                onPressed: () => context.push(
+                  AppRoutes.topicReadsPath(widget.topic),
+                ),
+              ),
             ],
             const SizedBox(height: 12),
             TextButton(

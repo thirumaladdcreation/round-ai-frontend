@@ -11,6 +11,8 @@ import 'package:round_ai/features/patient/models/plan_structured.dart';
 import 'package:round_ai/features/patient/models/problem.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 import 'package:round_ai/features/patient/widgets/chart_entry_scaffold.dart';
+import 'package:round_ai/features/problems/models/coding_suggestion.dart';
+import 'package:round_ai/features/problems/widgets/coding_suggest_sheet.dart';
 import 'package:round_ai/shared/widgets/app_button.dart';
 import 'package:round_ai/shared/widgets/app_input.dart';
 
@@ -240,6 +242,11 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                         controllers: _items[i],
                         includeIcd: _includeIcd,
                         problems: _problems,
+                        patientId: widget.patientId,
+                        onCodeChanged: (String? code) {
+                          setState(() => _items[i].code = code);
+                        },
+                        onProblemsRefresh: () => _load(),
                         onRemove: _items.length > 1 ? () => _removeAt(i) : null,
                       ),
                       const SizedBox(height: 12),
@@ -292,7 +299,7 @@ class _ItemControllers {
   final TextEditingController label;
   final TextEditingController assessment;
   final TextEditingController plan;
-  final String? code;
+  String? code;
 
   String? resolvedCode(List<Problem> problems) {
     if (code != null && code!.isNotEmpty) return code;
@@ -320,6 +327,9 @@ class _ProblemBlock extends StatelessWidget {
     required this.controllers,
     required this.includeIcd,
     required this.problems,
+    required this.patientId,
+    required this.onCodeChanged,
+    required this.onProblemsRefresh,
     this.onRemove,
   });
 
@@ -327,7 +337,48 @@ class _ProblemBlock extends StatelessWidget {
   final _ItemControllers controllers;
   final bool includeIcd;
   final List<Problem> problems;
+  final String patientId;
+  final ValueChanged<String?> onCodeChanged;
+  final VoidCallback onProblemsRefresh;
   final VoidCallback? onRemove;
+
+  Problem? _linkedProblem() {
+    final String? id = controllers.problemId;
+    if (id != null) {
+      for (final Problem p in problems) {
+        if (p.id == id) return p;
+      }
+    }
+    final String label = controllers.label.text.trim().toLowerCase();
+    for (final Problem p in problems) {
+      if (p.label.toLowerCase() == label) return p;
+    }
+    return null;
+  }
+
+  Future<void> _reviewIcd(BuildContext context) async {
+    final Problem? problem = _linkedProblem();
+    if (problem == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Link this row to a confirmed problem before reviewing ICD codes.',
+          ),
+        ),
+      );
+      return;
+    }
+    final AcceptedCodeSuggestion? accepted = await showCodingSuggestSheet(
+      context,
+      patientId: patientId,
+      problem: problem,
+      repository: InjectionContainer.instance.problemsRepository,
+      aiRepository: InjectionContainer.instance.aiRepository,
+    );
+    if (accepted == null) return;
+    onCodeChanged(accepted.code);
+    onProblemsRefresh();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -375,17 +426,27 @@ class _ProblemBlock extends StatelessWidget {
               hint: 'e.g. Acute kidney injury',
             ),
           ),
-          if (includeIcd && (code == null || code.isEmpty))
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'Code needed — review documentation and accept an ICD suggestion.',
+          if (includeIcd) ...<Widget>[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => _reviewIcd(context),
+                icon: const Icon(Icons.medical_information_outlined, size: 18),
+                label: Text(
+                  code == null || code.isEmpty ? 'Review ICD' : 'Change ICD',
+                ),
+              ),
+            ),
+            if (code == null || code.isEmpty)
+              Text(
+                'Code needed — review documentation and accept an ICD suggestion. '
+                'Do not invent unsupported specificity.',
                 style: AppTypography.regular(
                   fontSize: 12,
                   color: colors.warning,
                 ),
               ),
-            ),
+          ],
           const SizedBox(height: 10),
           TextField(
             controller: controllers.assessment,

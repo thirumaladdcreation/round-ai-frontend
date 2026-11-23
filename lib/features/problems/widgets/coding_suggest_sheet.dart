@@ -335,18 +335,34 @@ class _SuggestionTile extends StatelessWidget {
             ),
           if (suggestion.missingForSpecificity.isNotEmpty) ...<Widget>[
             const SizedBox(height: 6),
-            Text(
-              'Missing documentation:',
-              style: AppTypography.semiBold(fontSize: 12),
-            ),
-            for (final String m in suggestion.missingForSpecificity)
-              Text(
-                '· $m',
-                style: AppTypography.regular(
-                  fontSize: 12,
-                  color: colors.textSecondary,
-                ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: colors.criticalBg,
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Needs more detail',
+                    style: AppTypography.semiBold(
+                      fontSize: 12,
+                      color: colors.critical,
+                    ),
+                  ),
+                  for (final String m in suggestion.missingForSpecificity)
+                    Text(
+                      '· $m',
+                      style: AppTypography.regular(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
           if (suggestion.factIds.isNotEmpty)
             Wrap(

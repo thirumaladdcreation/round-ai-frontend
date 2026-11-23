@@ -2,13 +2,19 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:convert';
+
 import 'package:round_ai/core/config/app_environment.dart';
+import 'package:round_ai/core/constants/app_constants.dart';
 import 'package:round_ai/core/di/injection_container.dart';
 import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/router/app_routes.dart';
+import 'package:round_ai/core/storage/app_storage.dart';
 import 'package:round_ai/core/theme/app_colors.dart';
 import 'package:round_ai/core/theme/app_typography.dart';
+import 'package:round_ai/core/utils/date_format.dart';
+import 'package:round_ai/core/utils/hospital_clock.dart';
 import 'package:round_ai/features/ai/models/ai_envelope.dart';
 import 'package:round_ai/features/ai/models/summary_content.dart';
 import 'package:round_ai/features/ai/repository/ai_repository.dart';
@@ -22,6 +28,8 @@ import 'package:round_ai/features/notes/repository/notes_repository.dart';
 import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/features/patient/models/chart_source.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
+import 'package:round_ai/features/patient/models/plan_structured.dart';
+import 'package:round_ai/features/patient/models/problem.dart';
 import 'package:round_ai/features/patient/repository/chart_data_repository.dart';
 import 'package:round_ai/features/patient/repository/patient_repository.dart';
 import 'package:round_ai/features/patient/widgets/chart_entry_scaffold.dart';
@@ -112,16 +120,91 @@ class _NoteViewState extends State<_NoteView> {
     return _fields.putIfAbsent(id, () {
       final TextEditingController c = TextEditingController();
       c.addListener(() {
+        _persistCompose();
         if (mounted && !_scribeMode) setState(() {});
       });
       return c;
     });
   }
 
+  String get _composeCacheKey =>
+      '${AppConstants.noteComposeKeyPrefix}${widget.patientId}';
+
+  AppStorage? get _storage {
+    try {
+      return InjectionContainer.instance.appStorage;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Unsaved compose text that would be lost if the clinician leaves.
+  bool get _composeDirty {
+    if (_transcript.text.trim().length >= 12) return true;
+    for (final TextEditingController c in _fields.values) {
+      if (c.text.trim().isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  void _persistCompose() {
+    final AppStorage? storage = _storage;
+    if (storage == null) return;
+    final Map<String, String> fields = <String, String>{
+      for (final MapEntry<String, TextEditingController> e in _fields.entries)
+        if (e.value.text.trim().isNotEmpty) e.key: e.value.text,
+    };
+    final String transcript = _transcript.text.trim();
+    if (transcript.isEmpty && fields.isEmpty) {
+      storage.remove(_composeCacheKey);
+      return;
+    }
+    storage.saveString(
+      _composeCacheKey,
+      jsonEncode(<String, Object>{
+        'transcript': transcript,
+        'fields': fields,
+        'scribe': _scribeMode,
+      }),
+    );
+  }
+
+  void _restoreCompose() {
+    final AppStorage? storage = _storage;
+    if (storage == null) return;
+    final String? raw = storage.readString(_composeCacheKey);
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final Map<String, dynamic> map = Map<String, dynamic>.from(decoded);
+      final String transcript = '${map['transcript'] ?? ''}'.trim();
+      if (transcript.isNotEmpty && _transcript.text.trim().isEmpty) {
+        _transcript.text = transcript;
+      }
+      final Object? fieldsRaw = map['fields'];
+      if (fieldsRaw is Map) {
+        fieldsRaw.forEach((Object? key, Object? value) {
+          final String k = '$key';
+          final String v = '$value';
+          if (k.isEmpty || v.trim().isEmpty) return;
+          final TextEditingController c = _field(k);
+          if (c.text.trim().isEmpty) c.text = v;
+        });
+      }
+      if (map['scribe'] is bool) _scribeMode = map['scribe'] as bool;
+    } catch (_) {}
+  }
+
+  void _clearComposeCache() {
+    _storage?.remove(_composeCacheKey);
+  }
+
   @override
   void initState() {
     super.initState();
     _transcript.addListener(_onTranscriptChanged);
+    _restoreCompose();
     _loadPatientIdentity();
     if (!AppEnvironment.useDemo) {
       _loadFeedSources();
@@ -146,13 +229,15 @@ class _NoteViewState extends State<_NoteView> {
   }
 
   void _onTranscriptChanged() {
+    _persistCompose();
     if (mounted) setState(() {});
   }
 
-  /// Require real clinical content — whitespace or a couple of characters is not enough.
-  bool get _scribeReady {
-    final String t = _transcript.text.trim();
-    return t.length >= 12;
+  /// Field has a usable dictation, or an existing draft still has one stored.
+  bool _scribeReadyFor(NoteDraftState state) {
+    if (_transcript.text.trim().length >= 12) return true;
+    final String stored = state.content?.transcript.trim() ?? '';
+    return state.hasDraft && stored.length >= 12;
   }
 
   /// Advanced mode: at least one clinician field or saved plan must have text.
@@ -164,7 +249,8 @@ class _NoteViewState extends State<_NoteView> {
     return false;
   }
 
-  bool get _canGenerate => _scribeMode ? _scribeReady : _advancedReady;
+  bool _canGenerateFor(NoteDraftState state) =>
+      _scribeMode ? _scribeReadyFor(state) : _advancedReady;
 
   Future<void> _loadSavedPlan() async {
     final PatientRepository? repo;
@@ -179,14 +265,31 @@ class _NoteViewState extends State<_NoteView> {
       case Err<PatientDetail>():
         return;
       case Ok<PatientDetail>(:final value):
-        // Prefer structured plan so ICD preference matches the saved A&P.
-        final String text = value.planStructured != null &&
-                value.planStructured!.items.isNotEmpty
-            ? value.planStructured!
-                .toDisplayLines(withIcd: value.planStructured!.includeIcd)
-                .join('\n')
-                .trim()
-            : value.planToday.join('\n').trim();
+        // Prefer server-rendered plan_today (ICD-aware) so note copy matches A&P.
+        String text = value.planToday.join('\n').trim();
+        if (text.isEmpty &&
+            value.planStructured != null &&
+            value.planStructured!.items.isNotEmpty) {
+          text = value.planStructured!
+              .toDisplayLines(
+                withIcd: value.planStructured!.includeIcd,
+                codeForLabel: (PlanItem item) {
+                  for (final Problem p in value.problems) {
+                    final String? c = p.codeSuggestion?.code;
+                    if (c == null || c.isEmpty) continue;
+                    if (item.problemId != null && p.id == item.problemId) {
+                      return c;
+                    }
+                    if (p.label.toLowerCase() == item.label.toLowerCase()) {
+                      return c;
+                    }
+                  }
+                  return null;
+                },
+              )
+              .join('\n')
+              .trim();
+        }
         if (text.isEmpty) return;
         setState(() => _savedPlan = text);
         // Prefill empty Assessment/Plan inputs for every template type.
@@ -225,6 +328,7 @@ class _NoteViewState extends State<_NoteView> {
 
   @override
   void dispose() {
+    _persistCompose();
     _transcript.removeListener(_onTranscriptChanged);
     for (final TextEditingController c in _fields.values) {
       c.dispose();
@@ -234,6 +338,31 @@ class _NoteViewState extends State<_NoteView> {
     }
     _transcript.dispose();
     super.dispose();
+  }
+
+  Future<bool> _confirmLeaveIfDirty() async {
+    if (!_composeDirty) return true;
+    final bool? leave = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialog) => AlertDialog(
+        title: const Text('Leave note draft?'),
+        content: const Text(
+          'Your dictation and typed fields are kept on this device until you '
+          'return. Continue?',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Stay'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+    return leave == true;
   }
 
   /// Flat backend fields. Empty ones are left out so the server marks them
@@ -288,7 +417,7 @@ class _NoteViewState extends State<_NoteView> {
       if (ok != true || !mounted) return;
     }
     if (_scribeMode) {
-      if (!_scribeReady) {
+      if (!_scribeReadyFor(state)) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -298,6 +427,11 @@ class _NoteViewState extends State<_NoteView> {
           ),
         );
         return;
+      }
+      // Prefer field text; fall back to last successful draft transcript.
+      if (_transcript.text.trim().length < 12) {
+        final String stored = state.content?.transcript.trim() ?? '';
+        if (stored.length >= 12) _transcript.text = stored;
       }
     } else if (!_advancedReady) {
       if (!mounted) return;
@@ -320,9 +454,15 @@ class _NoteViewState extends State<_NoteView> {
       await cubit.generateFromDictation(
         transcript: _transcript.text,
         clarifications: clarifications.isEmpty ? null : clarifications,
+        noteDate: HospitalClock.todayIsoDate(),
       );
       if (!mounted) return;
       // Dictation text stays in the field on success or failure — never cleared here.
+      if (cubit.state.hasDraft && cubit.state.error == null) {
+        _clearComposeCache();
+      } else {
+        _persistCompose();
+      }
       await _offerPlanBridge(cubit);
       return;
     }
@@ -331,6 +471,12 @@ class _NoteViewState extends State<_NoteView> {
       _inputs(template),
       inputsFromSourceIds: ids.isEmpty ? null : ids,
     );
+    if (!mounted) return;
+    if (cubit.state.hasDraft && cubit.state.error == null) {
+      _clearComposeCache();
+    } else {
+      _persistCompose();
+    }
   }
 
   /// If dictation produced an Assessment/Plan, offer to save it as today's plan
@@ -357,8 +503,9 @@ class _NoteViewState extends State<_NoteView> {
       builder: (BuildContext dialog) => AlertDialog(
         title: const Text('Save Assessment and Plan?'),
         content: const Text(
-          'This dictation included an Assessment and Plan. Save it on the '
-          'patient page so you do not have to enter it twice?',
+          'Your dictation already includes an Assessment and Plan. Save it to '
+          'the patient page (editable by problem) so you do not enter it twice. '
+          'You can still edit it later under Assessment and Plan.',
         ),
         actions: <Widget>[
           TextButton(
@@ -367,7 +514,7 @@ class _NoteViewState extends State<_NoteView> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialog, true),
-            child: const Text('Save to patient'),
+            child: const Text('Save to patient page'),
           ),
         ],
       ),
@@ -376,17 +523,45 @@ class _NoteViewState extends State<_NoteView> {
     try {
       final PatientRepository repo =
           InjectionContainer.instance.patientRepository;
-      final List<String> lines = text
-          .split('\n')
-          .map((String l) => l.trim())
-          .where((String l) => l.isNotEmpty)
-          .toList();
-      final Result<void> result = await repo.savePlan(widget.patientId, lines);
+      final PlanStructured? parsed = PlanStructured.tryParseNoteText(text);
+      PlanStructured? structured;
+      final Result<void> result;
+      if (parsed != null && parsed.items.isNotEmpty) {
+        // Preserve existing ICD toggle preference; do not invent codes here.
+        bool includeIcd = false;
+        try {
+          final Result<PatientDetail> detail =
+              await repo.loadDetail(widget.patientId);
+          if (detail case Ok<PatientDetail>(:final value)) {
+            includeIcd = value.planStructured?.includeIcd ?? false;
+          }
+        } catch (_) {}
+        structured = parsed.copyWith(includeIcd: includeIcd);
+        result = await repo.saveStructuredPlan(widget.patientId, structured);
+      } else {
+        final List<String> lines = text
+            .split('\n')
+            .map((String l) => l.trim())
+            .where((String l) => l.isNotEmpty)
+            .toList();
+        result = await repo.savePlan(widget.patientId, lines);
+      }
       if (!mounted) return;
       if (result is Ok<void>) {
         markCensusDirty();
+        final PlanStructured? saved = structured;
+        _savedPlan = saved != null && saved.items.isNotEmpty
+            ? saved.toDisplayLines().join('\n')
+            : text;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Assessment and Plan saved.')),
+          SnackBar(
+            content: Text(
+              saved != null && saved.items.length > 1
+                  ? 'Assessment and Plan saved by problem '
+                        '(${saved.items.length} issues).'
+                  : 'Assessment and Plan saved.',
+            ),
+          ),
         );
       }
     } catch (_) {}
@@ -442,13 +617,14 @@ class _NoteViewState extends State<_NoteView> {
             ),
           ),
           actions: <Widget>[
-            TextButton(
+            // Default / recommended: keep clinician wording (Prompt 8 §5.8).
+            FilledButton(
               onPressed: () => Navigator.pop(dialog, false),
-              child: const Text('Keep current'),
+              child: const Text('Keep mine'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(dialog, true),
-              child: const Text('Apply'),
+              child: const Text('Use new'),
             ),
           ],
         );
@@ -465,11 +641,112 @@ class _NoteViewState extends State<_NoteView> {
     final String? text = await cubit.export();
     if (!mounted) return;
     if (text == null) return;
-    await Clipboard.setData(ClipboardData(text: text));
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Note text copied.')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Clipboard blocked (common on Safari). Select the note text and copy manually.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showHistory(NoteCubit cubit) async {
+    final AppColors colors = AppColors.of(context);
+    final List<NoteVersion> versions = await cubit.loadVersions();
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Note text copied.')));
+    if (versions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No saved versions yet.')),
+      );
+      return;
+    }
+    final List<NoteVersion> newestFirst = versions.reversed.toList();
+    final int? chosen = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheet) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Text(
+                  'Version history',
+                  style: AppTypography.semiBold(
+                    fontSize: 16,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Restore replaces the current draft and marks sections as '
+                  'manually edited. Review is cleared.',
+                  style: AppTypography.regular(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+              for (final NoteVersion v in newestFirst)
+                ListTile(
+                  title: Text('Version ${v.version}'),
+                  subtitle: Text(
+                    DateFormatter.dateTimeOrUnknown(
+                      HospitalClock.parseApiTimestamp(v.createdAt),
+                    ),
+                  ),
+                  trailing: TextButton(
+                    onPressed: () => Navigator.pop(sheet, v.version),
+                    child: const Text('Restore'),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (chosen == null || !mounted) return;
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialog) => AlertDialog(
+        title: const Text('Restore this version?'),
+        content: Text(
+          'Version $chosen becomes the current draft. You can edit and mark '
+          'reviewed again.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await cubit.restoreVersion(chosen);
+    if (!mounted) return;
+    if (cubit.state.error == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Restored version $chosen.')),
+      );
+    }
   }
 
   @override
@@ -477,9 +754,15 @@ class _NoteViewState extends State<_NoteView> {
     final AppColors colors = AppColors.of(context);
     return BlocConsumer<NoteCubit, NoteDraftState>(
       listenWhen: (NoteDraftState a, NoteDraftState b) =>
-          b.proposal != null && a.proposal != b.proposal,
+          (b.proposal != null && a.proposal != b.proposal) ||
+          ((b.content?.transcript ?? '') != (a.content?.transcript ?? '')),
       listener: (BuildContext context, NoteDraftState state) {
-        final RewriteProposal p = state.proposal!;
+        final String stored = state.content?.transcript.trim() ?? '';
+        if (stored.isNotEmpty && _transcript.text.trim().isEmpty) {
+          _transcript.text = stored;
+        }
+        final RewriteProposal? p = state.proposal;
+        if (p == null) return;
         final String title = state.sections
             .firstWhere(
               (NoteSection s) => s.key == p.sectionKey,
@@ -502,10 +785,28 @@ class _NoteViewState extends State<_NoteView> {
                   ? AiState.notGenerated
                   : AiState.fromError(state.error!))
             : AiState.fromEnvelope(state.envelope);
-        return ChartEntryScaffold(
+        // Warn only before a server draft exists; after generate, loadLatestNote restores work.
+        final bool warnLeave = !state.hasDraft && _composeDirty;
+        return PopScope(
+          canPop: !warnLeave,
+          onPopInvokedWithResult: (bool didPop, Object? result) async {
+            if (didPop) return;
+            final bool leave = await _confirmLeaveIfDirty();
+            if (leave && context.mounted) {
+              _persistCompose();
+              Navigator.of(context).pop();
+            }
+          },
+          child: ChartEntryScaffold(
           title: 'Draft note',
           patientName: _patientName,
           room: _patientRoom,
+          trailing: state.hasDraft
+              ? TextButton(
+                  onPressed: state.busy ? null : () => _showHistory(cubit),
+                  child: const Text('History'),
+                )
+              : null,
           bottom:
               state.templatesPhase != TemplatesPhase.ready || template == null
               ? null
@@ -513,7 +814,7 @@ class _NoteViewState extends State<_NoteView> {
                   state: state,
                   aiOff: widget.aiOff,
                   scribeMode: _scribeMode,
-                  canGenerate: _canGenerate,
+                  canGenerate: _canGenerateFor(state),
                   onGenerate: () {
                     _generate(cubit, template);
                   },
@@ -542,7 +843,9 @@ class _NoteViewState extends State<_NoteView> {
                     )
                   else if (state.hasDraft)
                     _StatusPill(
-                      label: 'Draft · review required',
+                      label: state.envelope?.isPartial == true
+                          ? 'Partial · edit required'
+                          : 'Draft · review required',
                       color: colors.aiAccent,
                       soft: colors.aiCard,
                     ),
@@ -586,18 +889,15 @@ class _NoteViewState extends State<_NoteView> {
                       ),
                     ),
                   ),
-              ] else ...<Widget>[
+              ] else if (!state.hasDraft) ...<Widget>[
                 const SizedBox(height: 10),
                 Text(
                   _scribeMode
-                      ? 'Speak or paste the whole update. Assessment and Plan '
-                            'you dictate can be saved back to the patient page '
-                            'so you do not enter it twice. Nothing is invented.'
-                      : 'Advanced: type each section. Empty parts stay '
-                            '"not entered". Chart-fact sections still use '
-                            'confirmed facts only.',
+                      ? 'Paste or dictate the update. Empty sections stay '
+                            'not entered — nothing is invented.'
+                      : 'Type each section. Empty parts stay not entered.',
                   style: AppTypography.regular(
-                    fontSize: 13,
+                    fontSize: 14,
                     height: 1.4,
                     color: colors.textSecondary,
                   ),
@@ -693,6 +993,7 @@ class _NoteViewState extends State<_NoteView> {
               ],
             ],
           ),
+        ),
         );
       },
     );
@@ -792,9 +1093,15 @@ class _NoteViewState extends State<_NoteView> {
       TextField(
         controller: _transcript,
         enabled: enabled,
-        minLines: 6,
-        maxLines: 12,
+        minLines: 5,
+        maxLines: 10,
         keyboardType: TextInputType.multiline,
+        style: AppTypography.regular(
+          fontSize: 15,
+          height: 1.4,
+          color: colors.textPrimary,
+        ),
+        cursorColor: colors.primary,
         decoration: appInputDecoration(
           context,
           label: 'Dictation',
@@ -1112,26 +1419,32 @@ class _GenerateBar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (!canGenerate)
+        if (!canGenerate && !state.hasDraft)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               scribeMode
-                  ? 'Dictate or paste a clinical update (short sentence or more) to enable note writing.'
-                  : 'Enter at least one clinician field (or save today’s Assessment and Plan) before generating.',
+                  ? 'Add a short clinical update to enable Write note.'
+                  : 'Enter at least one field before generating.',
               style: AppTypography.regular(
-                fontSize: 12,
-                color: colors.textMuted,
+                fontSize: 13,
+                color: colors.textSecondary,
               ),
             ),
           ),
-        FilledButton.icon(
-          onPressed: enabled ? onGenerate : null,
-          icon: const Icon(Icons.auto_awesome, size: 18),
-          label: Text(
-            state.hasDraft
-                ? 'Regenerate draft'
-                : (scribeMode ? 'Write note from dictation' : 'Generate draft'),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: enabled ? onGenerate : null,
+            icon: const Icon(Icons.auto_awesome, size: 20),
+            label: Text(
+              state.hasDraft
+                  ? 'Regenerate draft'
+                  : (scribeMode
+                        ? 'Write note from dictation'
+                        : 'Generate draft'),
+              style: AppTypography.semiBold(fontSize: 15),
+            ),
           ),
         ),
       ],
@@ -1223,7 +1536,8 @@ class _Draft extends StatelessWidget {
               ],
             ),
           ),
-        if (state.saveError != null) _ErrorBox(error: state.saveError!),
+        if (state.saveError != null)
+          _ErrorBox(error: state.saveError!, onRetry: cubit.retrySave),
         if (state.rewriteError != null) _ErrorBox(error: state.rewriteError!),
         if (state.reviewError != null)
           _ErrorBox(
@@ -1231,53 +1545,58 @@ class _Draft extends StatelessWidget {
             sections: state.flaggedSections.length,
           ),
         if (state.exportError != null) _ErrorBox(error: state.exportError!),
-        const SizedBox(height: 4),
-        if (!state.isReviewed)
-          Align(
-            alignment: Alignment.centerLeft,
+        const SizedBox(height: 8),
+        if (!state.isReviewed) ...<Widget>[
+          SizedBox(
+            width: double.infinity,
             child: FilledButton.icon(
               onPressed: state.canMarkReviewed ? cubit.markReviewed : null,
               icon: state.reviewing
                   ? const SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.verified_outlined, size: 18),
-              label: const Text('Mark reviewed'),
+                  : const Icon(Icons.verified_outlined, size: 20),
+              label: Text(
+                'Mark reviewed',
+                style: AppTypography.semiBold(fontSize: 15),
+              ),
             ),
           ),
-        for (final String reason in blockers)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              reason,
-              style: AppTypography.regular(fontSize: 12, color: colors.warning),
-            ),
-          ),
-        // Reviewed notes show Copy near the top of the screen. Drafts keep
-        // the button here with the "after review" hint.
-        if (!state.isReviewed) ...<Widget>[
           const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
+          SizedBox(
+            width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: state.canExport ? onCopy : null,
-              icon: const Icon(Icons.copy_rounded, size: 18),
-              label: const Text('Copy note text'),
+              icon: const Icon(Icons.copy_rounded, size: 20),
+              label: Text(
+                'Copy note text',
+                style: AppTypography.semiBold(fontSize: 15),
+              ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'Copying is available after the note is reviewed.',
+              state.canExport
+                  ? 'Ready to copy.'
+                  : 'Mark reviewed first, then copy.',
               style: AppTypography.regular(
-                fontSize: 12,
-                color: colors.textMuted,
+                fontSize: 13,
+                color: colors.textSecondary,
               ),
             ),
           ),
         ],
+        for (final String reason in blockers)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              reason,
+              style: AppTypography.regular(fontSize: 13, color: colors.warning),
+            ),
+          ),
       ],
     );
   }
@@ -1356,12 +1675,23 @@ class _SectionCard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
-          PlaceholderText(
-            section.text.isEmpty ? 'Not entered' : section.text,
-            style: AppTypography.regular(
-              height: 1.45,
-              color: section.text.isEmpty ? colors.warning : colors.textPrimary,
-            ),
+          Builder(
+            builder: (BuildContext context) {
+              final PlanStructured? plan = _isPlanSection(section)
+                  ? PlanStructured.tryParseNoteText(section.text)
+                  : null;
+              if (plan != null) return _PlanByProblem(plan: plan);
+              return PlaceholderText(
+                section.text.isEmpty ? 'Not entered' : section.text,
+                style: AppTypography.regular(
+                  fontSize: 15,
+                  height: 1.45,
+                  color: section.text.isEmpty
+                      ? colors.warning
+                      : colors.textPrimary,
+                ),
+              );
+            },
           ),
           for (final NoteFlag flag in section.flags)
             Padding(
@@ -1375,7 +1705,7 @@ class _SectionCard extends StatelessWidget {
                     child: Text(
                       flag.text,
                       style: AppTypography.regular(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: colors.warning,
                       ),
                     ),
@@ -1385,39 +1715,63 @@ class _SectionCard extends StatelessWidget {
             ),
           if (section.factIds.isNotEmpty) ...<Widget>[
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: <Widget>[
-                for (int i = 0; i < section.factIds.length; i++)
-                  ActionChip(
-                    avatar: const Icon(Icons.link_rounded, size: 14),
-                    label: Text('Source ${i + 1}'),
-                    onPressed: () => showSourceDrawer(
-                      context,
-                      claim: Claim(
-                        text: section.title,
-                        label: ClaimLabel.fromChart,
-                        factIds: <String>[section.factIds[i]],
-                      ),
-                      repository: aiRepository,
-                    ),
-                  ),
-              ],
+            TextButton.icon(
+              onPressed: () => showSourceDrawer(
+                context,
+                claim: Claim(
+                  text: section.title,
+                  label: ClaimLabel.fromChart,
+                  factIds: section.factIds,
+                ),
+                repository: aiRepository,
+              ),
+              icon: const Icon(Icons.link_rounded, size: 18),
+              label: Text(
+                '${section.factIds.length} source'
+                '${section.factIds.length == 1 ? '' : 's'}',
+                style: AppTypography.medium(fontSize: 14),
+              ),
             ),
           ],
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Row(
             children: <Widget>[
-              TextButton(
+              FilledButton.tonal(
                 onPressed: locked ? null : onEdit,
                 child: const Text('Edit'),
               ),
+              const SizedBox(width: 8),
               PopupMenuButton<RewriteMode>(
                 tooltip: 'Rewrite this section',
                 enabled: !locked && !aiOff,
-                onSelected: (RewriteMode mode) =>
-                    cubit.rewrite(section.key, mode),
+                onSelected: (RewriteMode mode) async {
+                  if (mode == RewriteMode.regenerate &&
+                      section.text.trim().isNotEmpty &&
+                      !hasPlaceholder(section.text)) {
+                    final bool? ok = await showDialog<bool>(
+                      context: context,
+                      builder: (BuildContext dialog) => AlertDialog(
+                        title: const Text('Regenerate this section?'),
+                        content: const Text(
+                          'This proposes new text for the section. Your current '
+                          'wording stays until you tap Apply.',
+                        ),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialog, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialog, true),
+                            child: const Text('Propose rewrite'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (ok != true || !context.mounted) return;
+                  }
+                  await cubit.rewrite(section.key, mode);
+                },
                 itemBuilder: (BuildContext context) =>
                     <PopupMenuEntry<RewriteMode>>[
                       for (final RewriteMode mode in RewriteMode.values)
@@ -1428,11 +1782,11 @@ class _SectionCard extends StatelessWidget {
                     ],
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
+                    horizontal: 10,
                     vertical: 10,
                   ),
                   child: Text(
-                    'Rewrite',
+                    'More',
                     style: AppTypography.medium(
                       fontSize: 14,
                       color: locked || aiOff
@@ -1446,6 +1800,81 @@ class _SectionCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  bool _isPlanSection(NoteSection section) {
+    final String key = section.key.toLowerCase();
+    final String title = section.title.toLowerCase();
+    return key == 'assessment_plan' ||
+        key == 'plan' ||
+        title.contains('assessment') ||
+        title.contains('plan');
+  }
+}
+
+class _PlanByProblem extends StatelessWidget {
+  const _PlanByProblem({required this.plan});
+
+  final PlanStructured plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = AppColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        for (int i = 0; i < plan.items.length; i++) ...<Widget>[
+          if (i > 0) const SizedBox(height: 12),
+          Text(
+            plan.items[i].label.isEmpty
+                ? 'Problem ${i + 1}'
+                : plan.items[i].label,
+            style: AppTypography.semiBold(
+              fontSize: 14,
+              color: colors.textPrimary,
+            ),
+          ),
+          if (plan.items[i].assessment.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              'Assessment',
+              style: AppTypography.medium(
+                fontSize: 12,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              plan.items[i].assessment,
+              style: AppTypography.regular(
+                fontSize: 14,
+                height: 1.4,
+                color: colors.textPrimary,
+              ),
+            ),
+          ],
+          if (plan.items[i].plan.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(
+              'Plan',
+              style: AppTypography.medium(
+                fontSize: 12,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              plan.items[i].plan,
+              style: AppTypography.regular(
+                fontSize: 14,
+                height: 1.4,
+                color: colors.textPrimary,
+              ),
+            ),
+          ],
+        ],
+      ],
     );
   }
 }
@@ -1481,6 +1910,16 @@ class _ErrorBox extends StatelessWidget {
             error.userMessage,
             style: AppTypography.regular(fontSize: 13, color: colors.critical),
           ),
+          if (error.referenceLine != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              error.referenceLine!,
+              style: AppTypography.regular(
+                fontSize: 12,
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
           if (sections > 0)
             Text(
               sections == 1

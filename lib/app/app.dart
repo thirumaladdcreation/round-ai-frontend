@@ -6,6 +6,7 @@ import 'package:round_ai/app/app_theme.dart';
 import 'package:round_ai/app/theme_cubit.dart';
 import 'package:round_ai/core/utils/screen_utils.dart';
 import 'package:round_ai/shared/widgets/environment_banner.dart';
+import 'package:round_ai/shared/widgets/mock_ai_banner.dart';
 import 'package:round_ai/shared/widgets/privacy_shield.dart';
 import 'package:round_ai/shared/widgets/web_phone_shell.dart';
 
@@ -31,7 +32,9 @@ class RoundsApp extends StatelessWidget {
                 behavior: HitTestBehavior.translucent,
                 child: PrivacyShield(
                   child: EnvironmentBanner(
-                    child: child ?? const SizedBox.shrink(),
+                    child: MockAiBanner(
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),

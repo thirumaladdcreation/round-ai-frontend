@@ -51,13 +51,18 @@ class MediaCapture {
         : MediaPermissionUse.photos;
     await _require(need);
 
-    final XFile? picked = await _picker.pickImage(
-      source: source,
-      maxWidth: 1920,
-      maxHeight: 1920,
-      imageQuality: 85,
-      requestFullMetadata: false,
-    );
+    late final XFile? picked;
+    try {
+      picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+        requestFullMetadata: false,
+      );
+    } catch (e) {
+      throw MediaCaptureException(_mapBrowserMediaError(e, photos: true));
+    }
     if (picked == null) {
       throw const MediaCaptureException(ApiError.cancelled());
     }
@@ -97,21 +102,53 @@ class MediaCapture {
     // `record` requires a path argument on all platforms; on web it is a
     // placeholder and stop() returns a blob URL.
     final String path;
-    if (kIsWeb) {
-      path = 'rounds_ai_${DateTime.now().microsecondsSinceEpoch}.wav';
-      await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.wav),
-        path: path,
-      );
-    } else {
-      final dynamic dir = await getTemporaryDirectory();
-      path =
-          '${dir.path}/rounds_ai_${DateTime.now().microsecondsSinceEpoch}.m4a';
-      await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc),
-        path: path,
+    try {
+      if (kIsWeb) {
+        path = 'rounds_ai_${DateTime.now().microsecondsSinceEpoch}.wav';
+        await _recorder.start(
+          const RecordConfig(encoder: AudioEncoder.wav),
+          path: path,
+        );
+      } else {
+        final dynamic dir = await getTemporaryDirectory();
+        path =
+            '${dir.path}/rounds_ai_${DateTime.now().microsecondsSinceEpoch}.m4a';
+        await _recorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc),
+          path: path,
+        );
+      }
+    } catch (e) {
+      throw MediaCaptureException(_mapBrowserMediaError(e));
+    }
+  }
+
+  /// Maps Safari/browser NotAllowedError (and similar) to a clear ApiError.
+  static ApiError _mapBrowserMediaError(Object error, {bool photos = false}) {
+    final String text = error.toString().toLowerCase();
+    final bool denied = text.contains('notallowed') ||
+        text.contains('permission') ||
+        text.contains('denied') ||
+        text.contains('not allowed') ||
+        text.contains('securityerror');
+    if (denied) {
+      return ApiError(
+        code: kIsWeb
+            ? 'permission_denied_web'
+            : 'permission_denied',
+        message: '',
+        status: 403,
       );
     }
+    if (photos && (text.contains('heic') || text.contains('heif'))) {
+      return const ApiError(code: 'mime_not_allowed', message: '', status: 415);
+    }
+    return ApiError(
+      code: 'capture_failed',
+      message: '',
+      status: 400,
+      details: <String, Object?>{'reason': error.toString()},
+    );
   }
 
   /// Stops recording and returns a validated temp capture, or null if empty.

@@ -9,6 +9,7 @@ class TeachingTopic extends Equatable {
     required this.count,
     this.confirmed = 0,
     this.differential = 0,
+    this.bankCount = 0,
   });
 
   factory TeachingTopic.fromJson(Map<String, dynamic> json) {
@@ -18,6 +19,7 @@ class TeachingTopic extends Equatable {
       count: Json.integer(json['count']),
       confirmed: Json.integer(json['confirmed']),
       differential: Json.integer(json['differential']),
+      bankCount: Json.integer(json['bank_count']),
     );
   }
 
@@ -27,13 +29,20 @@ class TeachingTopic extends Equatable {
   final int confirmed;
   final int differential;
 
+  /// Approved bank questions available for this topic.
+  final int bankCount;
+
   String get countLabel {
     final String n = count == 1 ? '1 related problem' : '$count related problems';
-    return n;
+    if (bankCount <= 0) return n;
+    final String bank = bankCount == 1
+        ? '1 bank question'
+        : '$bankCount bank questions';
+    return '$n · $bank';
   }
 
   @override
-  List<Object?> get props => <Object?>[topicKey, topic, count];
+  List<Object?> get props => <Object?>[topicKey, topic, count, bankCount];
 }
 
 class TeachingPlan extends Equatable {

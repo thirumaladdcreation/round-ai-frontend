@@ -15,6 +15,6 @@ class DemoSplashRepository implements SplashRepository {
     if (!_storage.hasSelectedTeam) {
       return const Ok<String>(AppRoutes.selectTeam);
     }
-    return const Ok<String>(AppRoutes.today);
+    return const Ok<String>(AppRoutes.census);
   }
 }

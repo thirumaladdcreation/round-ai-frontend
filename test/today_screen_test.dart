@@ -14,11 +14,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // The demo repository shows every demo action.
   setUp(() => AppFeatures.forceAll = true);
   tearDown(() => AppFeatures.forceAll = null);
 
-  testWidgets('home screen shows the stored clinician and team list', (
+  testWidgets('home screen focuses on greeting, primary CTA, and patients', (
     WidgetTester tester,
   ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{
@@ -42,20 +41,16 @@ void main() {
 
     expect(find.textContaining('Good afternoon'), findsOneWidget);
     expect(find.textContaining('Dr. Alex'), findsOneWidget);
-    expect(find.text('Monday, November 2'), findsOneWidget);
-    expect(find.text("Today's Rounds"), findsOneWidget);
-    expect(find.text('Prepare for Rounds'), findsOneWidget);
-    expect(find.textContaining('No generated draft'), findsOneWidget);
-    expect(
-      find.text('1 chart fact is waiting for review'),
-      findsWidgets,
-    );
-    expect(find.textContaining('early reassessment'), findsNothing);
-    expect(find.text('Open rounds'), findsOneWidget);
-    await tester.scrollUntilVisible(find.textContaining('Room 509A'), 200);
-    expect(find.textContaining('Room 509A'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Draft a Note'), 200);
-    expect(find.text('Teach Me'), findsOneWidget);
+    expect(find.text('Start New Round'), findsOneWidget);
+    expect(find.text('Recent Patients'), findsOneWidget);
+    expect(find.text('RoundsAI Assistant'), findsOneWidget);
+    // Repetitive rounds / prepare CTAs are gone from Home.
+    expect(find.text('Open rounds'), findsNothing);
+    expect(find.text('Prepare for Rounds'), findsNothing);
+    expect(find.text("Today's Rounds"), findsNothing);
+    expect(find.text('My Patients'), findsNothing);
+    await tester.scrollUntilVisible(find.textContaining('509A'), 200);
+    expect(find.textContaining('509A'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -68,13 +63,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('No patients are assigned to this team.'),
-      200,
-    );
     expect(find.text('No patients are assigned to this team.'), findsOneWidget);
-    expect(find.text('No pending tasks'), findsOneWidget);
-    expect(find.text('No drafts waiting'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

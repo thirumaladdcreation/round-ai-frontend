@@ -68,4 +68,42 @@ class DemoChartDataRepository implements ChartDataRepository {
         );
     return const Ok<void>(null);
   }
+
+  @override
+  Future<Result<Fact>> editFact(
+    String factId, {
+    String? name,
+    String? value,
+    String? unit,
+    String? qualifier,
+  }) async {
+    for (final MapEntry<String, List<Fact>> entry in _pending.entries) {
+      final int i = entry.value.indexWhere((Fact f) => f.id == factId);
+      if (i < 0) continue;
+      final Fact updated = entry.value[i].copyWith(
+        name: name,
+        value: value,
+        unit: unit,
+        qualifier: qualifier,
+      );
+      entry.value[i] = updated;
+      return Ok<Fact>(updated);
+    }
+    return const Err<Fact>(ValidationFailure('Fact not found.'));
+  }
+
+  @override
+  Future<Result<List<PlanProposal>>> planProposals(String patientId) async =>
+      const Ok<List<PlanProposal>>(<PlanProposal>[]);
+
+  @override
+  Future<Result<List<FactWarning>>> extractWarnings(String patientId) async =>
+      const Ok<List<FactWarning>>(<FactWarning>[]);
+
+  @override
+  Future<Result<void>> acceptPlanProposals(
+    String patientId,
+    List<PlanProposal> proposals,
+  ) async =>
+      const Ok<void>(null);
 }

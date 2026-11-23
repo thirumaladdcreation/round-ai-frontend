@@ -34,10 +34,10 @@ class SplashRepositoryImpl implements SplashRepository {
   Future<String> _afterProfile(List<ClinicalTeam> teams) async {
     if (teams.isEmpty) return AppRoutes.selectTeam;
     final String? saved = _storage.selectedTeamId;
-    if (teams.any((ClinicalTeam t) => t.id == saved)) return AppRoutes.today;
+    if (teams.any((ClinicalTeam t) => t.id == saved)) return AppRoutes.census;
     if (teams.length == 1) {
       await _storage.saveSelectedTeam(teams.first.id);
-      return AppRoutes.today;
+      return AppRoutes.census;
     }
     return AppRoutes.selectTeam;
   }

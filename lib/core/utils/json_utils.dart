@@ -67,8 +67,12 @@ class Json {
     return fallback;
   }
 
+  /// Parses API timestamps. Prefer ISO with offset/`Z`. Naive ISO (no zone) is
+  /// treated as hospital/local wall time — see [HospitalClock.parseApiTimestamp].
   static DateTime? date(Object? value) {
     if (value == null) return null;
+    // Inline tryParse keeps json_utils free of Flutter-only imports in tests;
+    // HospitalClock documents the naive-vs-offset contract used app-wide.
     return DateTime.tryParse(value.toString());
   }
 }

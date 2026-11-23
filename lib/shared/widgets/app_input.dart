@@ -23,10 +23,17 @@ InputDecoration appInputDecoration(
     helperText: helper,
     helperMaxLines: 3,
     filled: true,
-    fillColor: colors.surface,
-    labelStyle: AppTypography.regular(color: colors.textSecondary),
-    hintStyle: AppTypography.regular(color: colors.textMuted, fontSize: 14),
-    helperStyle: AppTypography.regular(color: colors.textMuted, fontSize: 12),
+    fillColor: colors.inputFill,
+    labelStyle: AppTypography.regular(
+      color: colors.textSecondary,
+      fontSize: 14,
+    ),
+    floatingLabelStyle: AppTypography.medium(
+      color: colors.textPrimary,
+      fontSize: 14,
+    ),
+    hintStyle: AppTypography.regular(color: colors.textMuted, fontSize: 15),
+    helperStyle: AppTypography.regular(color: colors.textMuted, fontSize: 13),
     border: border(colors.border),
     enabledBorder: border(colors.border),
     focusedBorder: border(colors.primary, 1.4),
@@ -46,14 +53,14 @@ class FreeTextHint extends StatelessWidget {
       padding: const EdgeInsets.only(top: 6),
       child: Row(
         children: <Widget>[
-          Icon(Icons.shield_outlined, size: 14, color: colors.textMuted),
+          Icon(Icons.shield_outlined, size: 16, color: colors.textSecondary),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               text,
               style: AppTypography.regular(
-                fontSize: 12,
-                color: colors.textMuted,
+                fontSize: 13,
+                color: colors.textSecondary,
               ),
             ),
           ),

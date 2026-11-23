@@ -3,6 +3,7 @@ import 'package:round_ai/core/errors/result.dart';
 import 'package:round_ai/core/network/api_client.dart';
 import 'package:round_ai/core/network/api_endpoints.dart';
 import 'package:round_ai/core/network/api_error.dart';
+import 'package:round_ai/core/sync/census_sync_mark.dart';
 import 'package:round_ai/core/utils/json_utils.dart';
 import 'package:round_ai/features/patient/models/patient_detail.dart';
 import 'package:round_ai/features/patient/models/plan_structured.dart';
@@ -61,10 +62,11 @@ class PatientRepositoryImpl implements PatientRepository {
     }
     try {
       // Backend: PUT { text, plan_date? } — one string, not a list field.
-      await _client.put<Object>(
+      final response = await _client.put<Object>(
         ApiEndpoints.patientPlan(patientId),
         data: <String, String>{'text': text},
       );
+      applyPatientStatusFromBody(response.data);
       return const Ok<void>(null);
     } on ApiError catch (error) {
       return Err<void>(ApiFailure(error));
@@ -90,13 +92,14 @@ class PatientRepositoryImpl implements PatientRepository {
       );
     }
     try {
-      await _client.put<Object>(
+      final response = await _client.put<Object>(
         ApiEndpoints.patientPlan(patientId),
         data: <String, Object>{
           'include_icd': plan.includeIcd,
           'items': items.map((PlanItem i) => i.toJson()).toList(),
         },
       );
+      applyPatientStatusFromBody(response.data);
       return const Ok<void>(null);
     } on ApiError catch (error) {
       return Err<void>(ApiFailure(error));

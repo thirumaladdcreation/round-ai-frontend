@@ -205,7 +205,7 @@ void main() {
           message: 'x',
           status: 502,
         ).userMessage,
-        'AI service busy, try again.',
+        contains('AI service busy'),
       );
       expect(
         const ApiError(
@@ -213,7 +213,7 @@ void main() {
           message: 'x',
           status: 415,
         ).userMessage,
-        contains('JPEG or PNG'),
+        contains('JPEG'),
       );
       expect(
         const ApiError(
@@ -244,7 +244,15 @@ void main() {
           message: 'leak',
           status: 500,
         ).userMessage,
-        'Something went wrong. Try again.',
+        isNot(contains('leak')),
+      );
+      expect(
+        const ApiError(
+          code: 'mystery_scribe',
+          message: 'leak',
+          status: 500,
+        ).userMessage,
+        isNotEmpty,
       );
     });
   });

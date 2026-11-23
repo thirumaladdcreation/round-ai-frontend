@@ -608,6 +608,24 @@ void main() {
       await c.close();
     });
 
+    test('partial envelope blocks mark reviewed until edited', () async {
+      final FakeNotesRepository notes = FakeNotesRepository()
+        ..generated = Ok<AiEnvelope>(noteEnvelope(status: 'partial'));
+      final FakeAiRepository ai = FakeAiRepository();
+      final NoteCubit c = _cubit(notes, ai);
+      await c.loadTemplates();
+      await c.generate(const <String, Object>{});
+      expect(c.state.envelope?.isPartial, isTrue);
+      expect(
+        c.state.reviewBlockers.any((String s) => s.contains('Partial result')),
+        isTrue,
+      );
+      expect(c.state.canMarkReviewed, isFalse);
+      await c.markReviewed();
+      expect(ai.reviewed_, isEmpty);
+      await c.close();
+    });
+
     test('a clean draft can be reviewed, and the server can refuse', () async {
       final FakeNotesRepository notes = FakeNotesRepository();
       final FakeAiRepository ai = FakeAiRepository()
@@ -739,6 +757,17 @@ void main() {
       final NoteCubit c = _cubit(notes, FakeAiRepository());
       await c.loadTemplates();
       await c.generateFromDictation(transcript: '   ');
+      expect(notes.generateKeys, isEmpty);
+      expect(c.state.error?.code, 'transcript_required');
+      expect(c.state.hasDraft, isFalse);
+      await c.close();
+    });
+
+    test('dictation: short transcript never calls the API', () async {
+      final FakeNotesRepository notes = FakeNotesRepository();
+      final NoteCubit c = _cubit(notes, FakeAiRepository());
+      await c.loadTemplates();
+      await c.generateFromDictation(transcript: 'ok labs');
       expect(notes.generateKeys, isEmpty);
       expect(c.state.error?.code, 'transcript_required');
       expect(c.state.hasDraft, isFalse);

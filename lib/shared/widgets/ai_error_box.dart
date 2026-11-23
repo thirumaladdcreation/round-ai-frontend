@@ -38,6 +38,16 @@ class AiErrorBox extends StatelessWidget {
             error.userMessage,
             style: AppTypography.regular(fontSize: 13, color: colors.critical),
           ),
+          if (error.referenceLine != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              error.referenceLine!,
+              style: AppTypography.regular(
+                fontSize: 12,
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
           if (sections > 0)
             Text(
               sections == 1

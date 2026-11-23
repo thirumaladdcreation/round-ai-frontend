@@ -1,11 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:round_ai/core/config/app_environment.dart';
 import 'package:round_ai/core/constants/app_constants.dart';
+import 'package:round_ai/core/network/api_endpoints.dart';
 import 'package:round_ai/core/network/api_error.dart';
 import 'package:round_ai/core/network/api_log_interceptor.dart';
 import 'package:round_ai/core/network/auth_interceptor.dart';
 import 'package:round_ai/core/network/idempotency_key.dart';
 import 'package:round_ai/core/storage/session_store.dart';
+import 'package:round_ai/core/utils/app_log.dart';
 
 /// Thin Dio wrapper. Callers get a [Response] or an [ApiError].
 ///
@@ -42,6 +44,29 @@ class ApiClient {
   final Dio _dio;
 
   Dio get rawClient => _dio;
+
+  /// Fire-and-forget ping so a sleeping Fly trial machine can wake before login.
+  ///
+  /// When [onHealth] is set, passes the parsed health JSON (provider/model).
+  void wakeBackend({void Function(Map<String, dynamic> health)? onHealth}) {
+    () async {
+      try {
+        final Response<Object> response = await _dio.get<Object>(
+          ApiEndpoints.health,
+          options: Options(
+            connectTimeout: AppConstants.connectTimeout,
+            receiveTimeout: AppConstants.connectTimeout,
+          ),
+        );
+        final Object? data = response.data;
+        if (onHealth != null && data is Map) {
+          onHealth(Map<String, dynamic>.from(data));
+        }
+      } catch (e) {
+        AppLog.line('[api] wakeBackend: $e');
+      }
+    }();
+  }
 
   Future<Response<T>> get<T>(
     String path, {
@@ -196,7 +221,13 @@ class ApiClient {
         return ApiError.fromResponse(
           error.response?.statusCode,
           error.response?.data,
+          requestId: _headerRequestId(error.response?.headers),
         );
     }
+  }
+
+  static String? _headerRequestId(Headers? headers) {
+    if (headers == null) return null;
+    return headers.value('x-request-id') ?? headers.value('X-Request-Id');
   }
 }

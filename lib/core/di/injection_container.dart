@@ -1,5 +1,7 @@
 ﻿import 'package:flutter/foundation.dart';
+import 'package:round_ai/core/config/ai_provider_store.dart';
 import 'package:round_ai/core/config/app_environment.dart';
+import 'package:round_ai/core/sync/patient_status_store.dart';
 import 'package:round_ai/core/network/api_client.dart';
 import 'package:round_ai/core/router/app_router.dart';
 import 'package:round_ai/core/storage/app_storage.dart';
@@ -81,6 +83,8 @@ class InjectionContainer {
   late final SharedPreferences _sharedPreferences;
   late final AppStorage appStorage;
   late final CensusSync censusSync;
+  late final PatientStatusStore patientStatusStore;
+  late final AiProviderStore aiProviderStore;
   late final ApiClient apiClient;
   late final AuthRepository authRepository;
   late final ProfileRepository profileRepository;
@@ -119,6 +123,8 @@ class InjectionContainer {
     await appStorage.purgeLegacyToken();
     await session.restore();
     censusSync = CensusSync();
+    patientStatusStore = PatientStatusStore();
+    aiProviderStore = AiProviderStore();
     chatUnreadBadge = ChatUnreadBadge();
     chatPeople = ChatPeopleDirectory();
     apiClient = ApiClient(session: session, onUnauthorized: _endSession);
@@ -181,6 +187,9 @@ class InjectionContainer {
       chatStreamClient = DioChatStreamClient(apiClient);
       chatRealtime = ChatRealtimeController(client: chatStreamClient);
       _initChatPush();
+    }
+    if (!AppEnvironment.useDemo) {
+      apiClient.wakeBackend(onHealth: aiProviderStore.applyHealth);
     }
     AppLog.line('[DI] ready (${AppEnvironment.useDemo ? 'demo' : 'backend'})');
   }

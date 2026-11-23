@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:round_ai/app/app_colors.dart';
 import 'package:round_ai/app/app_typography.dart';
 import 'package:round_ai/core/config/app_environment.dart';
+import 'package:round_ai/core/di/injection_container.dart';
 import 'package:round_ai/core/router/app_routes.dart';
 import 'package:round_ai/features/authentication/bloc/auth_bloc.dart';
 import 'package:round_ai/features/authentication/bloc/auth_event.dart';
@@ -35,6 +36,10 @@ class SignInFormState extends State<SignInForm> {
     super.initState();
     _emailController = TextEditingController(text: widget.initialEmail ?? '');
     _remember = widget.rememberMe;
+    // Trial Fly machines sleep when idle — wake before the user hits Sign In.
+    InjectionContainer.instance.apiClient.wakeBackend(
+      onHealth: InjectionContainer.instance.aiProviderStore.applyHealth,
+    );
   }
 
   @override

@@ -230,6 +230,11 @@ void main() {
     testWidgets('Learn tab lists topics without patient names', (
       WidgetTester tester,
     ) async {
+      tester.view.physicalSize = const Size(400, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(
         MaterialApp(
           home: LearningScreen(repository: DemoTeachingRepository()),
@@ -239,6 +244,11 @@ void main() {
       expect(find.text('Today’s topics'), findsOneWidget);
       expect(find.textContaining('No patient names'), findsOneWidget);
       expect(find.text('Rosa Martinez'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Guideline updates'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Guideline updates'), findsOneWidget);
       expect(
         find.textContaining('No approved guideline updates'),
