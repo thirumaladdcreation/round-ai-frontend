@@ -343,14 +343,18 @@ class _StatusChip extends StatelessWidget {
 }
 
 /// Soft “Need something?” strip under recent patients (mockup).
+/// Always a light card — ink stays dark even in app dark mode.
 class _NeedSomethingBanner extends StatelessWidget {
   const _NeedSomethingBanner({required this.hasAttention});
 
   final bool hasAttention;
 
+  static const Color _ink = Color(0xFF15252F);
+  static const Color _muted = Color(0xFF5B6B7A);
+  static const Color _accent = Color(0xFF0A8F9C);
+
   @override
   Widget build(BuildContext context) {
-    final AppColors colors = AppColors.of(context);
     final String detail = hasAttention
         ? 'Open a patient chart to clear what’s waiting.'
         : 'Nothing is waiting on this list.';
@@ -370,64 +374,45 @@ class _NeedSomethingBanner extends StatelessWidget {
         ),
         border: Border.all(color: const Color(0xFFB8E0E6)),
       ),
-      child: Stack(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Positioned(
-            right: -4,
-            bottom: -8,
-            child: Opacity(
-              opacity: 0.22,
-              child: Image.asset(
-                AppAssets.loginIllustration,
-                width: 88,
-                height: 72,
-                fit: BoxFit.contain,
-                errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) =>
-                    const SizedBox.shrink(),
-              ),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.lightbulb_outline_rounded,
+              size: 20,
+              color: _accent,
             ),
           ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  shape: BoxShape.circle,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Need something?',
+                  style: AppTypography.semiBold(
+                    fontSize: 14,
+                    color: _ink,
+                  ),
                 ),
-                child: Icon(
-                  Icons.lightbulb_outline_rounded,
-                  size: 20,
-                  color: colors.primary,
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: AppTypography.regular(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: _muted,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Need something?',
-                      style: AppTypography.semiBold(
-                        fontSize: 14,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      detail,
-                      style: AppTypography.regular(
-                        fontSize: 12.5,
-                        height: 1.35,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
