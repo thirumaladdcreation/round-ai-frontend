@@ -68,9 +68,10 @@ void main() {
   tearDown(() => AppFeatures.forceAll = null);
 
   group('shell tabs', () {
-    test('the real build shows Patients, Tasks, Learn and Chat', () {
+    test('the real build shows Today, Patients, Tasks, Learn and Chat', () {
       AppFeatures.forceAll = null;
       expect(ShellTabs.visible, <ShellTab>[
+        ShellTab.today,
         ShellTab.census,
         ShellTab.tasks,
         ShellTab.learn,
@@ -85,6 +86,7 @@ void main() {
     test('forceAll keeps the same product bottom bar', () {
       AppFeatures.forceAll = true;
       expect(ShellTabs.visible, <ShellTab>[
+        ShellTab.today,
         ShellTab.census,
         ShellTab.tasks,
         ShellTab.learn,
@@ -106,11 +108,11 @@ void main() {
           ),
         ),
       );
+      expect(find.text('Today'), findsOneWidget);
       expect(find.text('Patients'), findsOneWidget);
       expect(find.text('Tasks'), findsOneWidget);
       expect(find.text('Learn'), findsOneWidget);
       expect(find.text('Chat'), findsOneWidget);
-      expect(find.text('Home'), findsNothing);
       expect(find.text('Scribe'), findsNothing);
       expect(find.text('Rounds'), findsNothing);
 
@@ -122,6 +124,7 @@ void main() {
           ),
         ),
       );
+      expect(find.text('Today'), findsOneWidget);
       expect(find.text('Patients'), findsOneWidget);
       expect(find.text('Tasks'), findsOneWidget);
       expect(find.text('Learn'), findsOneWidget);

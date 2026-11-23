@@ -48,7 +48,7 @@ class AppBottomNavBar extends StatelessWidget {
         ShellTab.today => const _NavSpec(
           Icons.home_rounded,
           Icons.home_outlined,
-          'Home',
+          'Today',
         ),
         ShellTab.scribe => const _NavSpec(
           Icons.mic_none_outlined,

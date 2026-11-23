@@ -55,14 +55,6 @@ class AppMenuDrawer extends StatelessWidget {
               ),
               onTap: () => _go(context, AppRoutes.profile, replace: true),
             ),
-            ListTile(
-              leading: Icon(Icons.home_outlined, color: palette.textPrimary),
-              title: Text(
-                'Today overview',
-                style: AppTypography.bodyLarge(color: palette.textPrimary),
-              ),
-              onTap: () => _go(context, AppRoutes.today, replace: true),
-            ),
             if (AppFeatures.rounds)
               ListTile(
                 leading: Icon(

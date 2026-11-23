@@ -39,7 +39,7 @@ class TeamSelectionView extends StatelessWidget {
     return BlocListener<TeamSelectionBloc, TeamSelectionState>(
       listenWhen: (_, TeamSelectionState next) => next.openDashboard,
       listener: (BuildContext context, TeamSelectionState state) {
-        context.go(AppRoutes.census);
+        context.go(AppRoutes.today);
       },
       child: Scaffold(
         backgroundColor: palette.background,

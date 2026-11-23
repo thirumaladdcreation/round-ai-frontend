@@ -10,20 +10,20 @@ import 'package:round_ai/shared/widgets/app_bottom_nav_bar.dart';
 void main() {
   tearDown(() => AppFeatures.forceAll = null);
 
-  test('P3 bottom nav is Patients · Tasks · Learn · Chat', () {
+  test('bottom nav is Today · Patients · Tasks · Learn · Chat', () {
     AppFeatures.forceAll = null;
     expect(ShellTabs.visible, <ShellTab>[
+      ShellTab.today,
       ShellTab.census,
       ShellTab.tasks,
       ShellTab.learn,
       ShellTab.chat,
     ]);
-    expect(ShellTabs.visible.contains(ShellTab.today), isFalse);
     expect(ShellTabs.visible.contains(ShellTab.scribe), isFalse);
     expect(ShellTabs.visible.contains(ShellTab.rounds), isFalse);
   });
 
-  testWidgets('bottom bar has no Home/Scribe/Rounds labels', (
+  testWidgets('bottom bar shows Today first; no Scribe/Rounds', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
@@ -33,11 +33,11 @@ void main() {
         ),
       ),
     );
+    expect(find.text('Today'), findsOneWidget);
     expect(find.text('Patients'), findsOneWidget);
     expect(find.text('Tasks'), findsOneWidget);
     expect(find.text('Learn'), findsOneWidget);
     expect(find.text('Chat'), findsOneWidget);
-    expect(find.text('Home'), findsNothing);
     expect(find.text('Scribe'), findsNothing);
     expect(find.text('Rounds'), findsNothing);
   });
@@ -77,7 +77,7 @@ void main() {
     expect(find.text('Draft'), findsOneWidget);
   });
 
-  test('post-login landing is Patients (census)', () {
-    expect(AppRoutes.census, '/census');
+  test('post-login landing is Today', () {
+    expect(AppRoutes.today, '/today');
   });
 }
