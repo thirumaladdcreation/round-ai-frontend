@@ -3,7 +3,7 @@
 set -euo pipefail
 
 FLUTTER_VERSION="${FLUTTER_VERSION:-stable}"
-API_BASE_URL="${API_BASE_URL:-https://round-ai-backend.fly.dev}"
+API_BASE_URL="${API_BASE_URL:-https://roundsai-demo.fly.dev}"
 APP_ENV="${APP_ENV:-production}"
 DEMO_HINTS="${DEMO_HINTS:-true}"
 
